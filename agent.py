@@ -69,7 +69,10 @@ def process_query(user_input: str, patient_id: str) -> Dict[str, Any]:
                     # tool.invoke accepts a dict or args
                     tool_output = selected_tool.invoke(tool_args)
                 except Exception as e:
-                    tool_output = f"Error executing tool {tool_name}: {str(e)}"
+                    tool_output = {
+                        "resourceType": "OperationOutcome",
+                        "issue": [{"severity": "error", "code": "exception", "diagnostics": str(e)}]
+                    }
 
                 # Append to data_sources (flatten list if it's a list)
                 if isinstance(tool_output, list):
