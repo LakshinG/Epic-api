@@ -39,30 +39,30 @@ from epic_fhir_client import (
 def example_open_api():
     """
     Example 1: Using the Open API (No Authentication Required)
-    
+
     This is the easiest way to get started with Epic FHIR sandbox.
     Perfect for initial testing and exploration.
     """
     print("\n" + "="*60)
     print("EXAMPLE 1: Open FHIR API (No Auth Required)")
     print("="*60)
-    
+
     # Initialize client
     client = EpicOpenClient()
-    
+
     # Test patient FHIR ID from Epic sandbox
     # Use one of the publicly available test patients
     test_patient_id = "eq081-VQEgP8drUUqCWzHfw3"  # Derrick Lin
-    
+
     print(f"\nFetching patient: {test_patient_id}")
     print("-" * 40)
-    
+
     try:
         # 1. Get Patient Demographics
         print("\n1. Patient Demographics:")
         patient = client.get_patient(test_patient_id)
         print(format_patient_info(patient))
-        
+
         # 2. Get Patient Conditions
         print("\n2. Conditions/Diagnoses:")
         conditions = client.get_conditions(test_patient_id)
@@ -70,7 +70,7 @@ def example_open_api():
             code = entry.get("code", {}).get("text", "Unknown")
             status = entry.get("clinicalStatus", {}).get("coding", [{}])[0].get("code", "Unknown")
             print(f"  - {code} (Status: {status})")
-        
+
         # 3. Get Medications
         print("\n3. Medications:")
         meds = client.get_medications(test_patient_id)
@@ -78,7 +78,7 @@ def example_open_api():
             med_text = entry.get("medicationCodeableConcept", {}).get("text", "Unknown")
             status = entry.get("status", "Unknown")
             print(f"  - {med_text} (Status: {status})")
-        
+
         # 4. Get Vital Signs
         print("\n4. Vital Signs:")
         vitals = client.get_observations(test_patient_id, category="vital-signs")
@@ -87,7 +87,7 @@ def example_open_api():
             value = entry.get("valueQuantity", {})
             val_str = f"{value.get('value', '')} {value.get('unit', '')}"
             print(f"  - {obs_type}: {val_str}")
-        
+
         # 5. Get Allergies
         print("\n5. Allergies:")
         allergies = client.get_allergies(test_patient_id)
@@ -99,7 +99,7 @@ def example_open_api():
                 print(f"  - {allergen} (Severity: {severity})")
         else:
             print("  No allergies recorded")
-        
+
         # 6. Get Immunizations
         print("\n6. Immunizations:")
         immunizations = client.get_immunizations(test_patient_id)
@@ -107,7 +107,7 @@ def example_open_api():
             vaccine = entry.get("vaccineCode", {}).get("text", "Unknown")
             date = entry.get("occurrenceDateTime", "Unknown date")
             print(f"  - {vaccine} ({date})")
-        
+
         # 7. Get Goals
         print("\n7. Health Goals:")
         goals = client.get_goals(test_patient_id)
@@ -115,7 +115,7 @@ def example_open_api():
             description = entry.get("description", {}).get("text", "Unknown")
             status = entry.get("lifecycleStatus", "Unknown")
             print(f"  - {description} (Status: {status})")
-            
+
     except Exception as e:
         print(f"Error: {e}")
 
@@ -127,9 +127,9 @@ def example_search_patients():
     print("\n" + "="*60)
     print("EXAMPLE 2: Patient Search")
     print("="*60)
-    
+
     client = EpicOpenClient()
-    
+
     # Search by family name
     print("\nSearching for patients with family name 'Lopez'...")
     try:
@@ -149,31 +149,31 @@ def example_server_metadata():
     print("\n" + "="*60)
     print("EXAMPLE 3: Server Metadata / Capability Statement")
     print("="*60)
-    
+
     client = EpicOpenClient()
-    
+
     try:
         metadata = client.get_metadata()
-        
+
         print(f"\nServer: {metadata.get('software', {}).get('name', 'Unknown')}")
         print(f"FHIR Version: {metadata.get('fhirVersion', 'Unknown')}")
         print(f"Publisher: {metadata.get('publisher', 'Unknown')}")
-        
+
         # List supported resources
         print("\nSupported Resources:")
         rest = metadata.get("rest", [{}])[0]
         resources = rest.get("resource", [])
-        
+
         # Group by common categories
         clinical_resources = []
         admin_resources = []
         other_resources = []
-        
-        clinical_types = ["Patient", "Observation", "Condition", "Procedure", 
+
+        clinical_types = ["Patient", "Observation", "Condition", "Procedure",
                         "MedicationRequest", "AllergyIntolerance", "Immunization",
                         "DiagnosticReport", "Encounter", "CarePlan"]
         admin_types = ["Practitioner", "Organization", "Location", "Schedule", "Slot"]
-        
+
         for resource in resources:
             res_type = resource.get("type")
             if res_type in clinical_types:
@@ -182,11 +182,11 @@ def example_server_metadata():
                 admin_resources.append(res_type)
             else:
                 other_resources.append(res_type)
-        
+
         print(f"\n  Clinical ({len(clinical_resources)}): {', '.join(sorted(clinical_resources))}")
         print(f"\n  Administrative ({len(admin_resources)}): {', '.join(sorted(admin_resources))}")
         print(f"\n  Other ({len(other_resources)}): {', '.join(sorted(other_resources[:10]))}...")
-        
+
     except Exception as e:
         print(f"Error: {e}")
 
@@ -198,28 +198,28 @@ def example_patient_summary():
     print("\n" + "="*60)
     print("EXAMPLE 4: International Patient Summary ($summary)")
     print("="*60)
-    
+
     client = EpicOpenClient()
     test_patient_id = "eq081-VQEgP8drUUqCWzHfw3"  # Derrick Lin
-    
+
     try:
         print(f"\nFetching IPS for patient: {test_patient_id}")
         summary = client.get_patient_summary(test_patient_id)
-        
+
         print(f"\nDocument type: {summary.get('resourceType')}")
         print(f"Total entries: {summary.get('total', len(summary.get('entry', [])))}")
-        
+
         # Parse the sections
         entries = summary.get("entry", [])
         resource_types = {}
         for entry in entries:
             res_type = entry.get("resource", {}).get("resourceType")
             resource_types[res_type] = resource_types.get(res_type, 0) + 1
-        
+
         print("\nContents:")
         for res_type, count in sorted(resource_types.items()):
             print(f"  - {res_type}: {count}")
-            
+
     except Exception as e:
         print(f"Error: {e}")
 
@@ -227,7 +227,7 @@ def example_patient_summary():
 def example_with_bearer_token():
     """
     Example 5: Using a Bearer Token (from Epic web interface)
-    
+
     To get a bearer token:
     1. Go to https://fhir.epic.com/
     2. Register/Login
@@ -237,23 +237,23 @@ def example_with_bearer_token():
     print("\n" + "="*60)
     print("EXAMPLE 5: Token-Based Authentication")
     print("="*60)
-    
+
     # You would get this token from the Epic sandbox web interface
     # This is a placeholder - real tokens expire after ~1 hour
     sample_token = "3d0f1316-60bf-4256-9350-e1ae848642d6"
-    
+
     print("""
     To use token-based authentication:
-    
+
     1. Visit https://fhir.epic.com/ and create an account
     2. Go to API Specifications
     3. Select any API and click "Try It"
     4. After authorization, copy the Bearer token from the request
     5. Use it like this:
-    
+
     ```python
     from epic_fhir_client import EpicTokenClient
-    
+
     client = EpicTokenClient(access_token="your-bearer-token")
     patient = client.get_patient("eq081-VQEgP8drUUqCWzHfw3")
     ```
@@ -263,41 +263,41 @@ def example_with_bearer_token():
 def example_backend_auth():
     """
     Example 6: Backend System Authentication (JWT)
-    
+
     For server-to-server applications that need unattended access.
     Requires app registration and key pair generation.
     """
     print("\n" + "="*60)
     print("EXAMPLE 6: Backend System Authentication (JWT)")
     print("="*60)
-    
+
     print("""
     For backend/server authentication, you need:
-    
+
     1. Register your app at https://fhir.epic.com/
        - Create a "Backend System" app
        - Note your Non-Production Client ID
-    
+
     2. Generate an RSA key pair:
        ```bash
        # Generate private key
        openssl genrsa -out private_key.pem 2048
-       
+
        # Generate public key certificate
        openssl req -new -x509 -key private_key.pem -out public_key.pem -days 365
        ```
-    
+
     3. Upload public key to your Epic app registration
-    
+
     4. Use the client:
        ```python
        from epic_fhir_client import EpicBackendClient
-       
+
        client = EpicBackendClient(
            client_id="your-non-prod-client-id",
            private_key_path="path/to/private_key.pem"
        )
-       
+
        # Client handles authentication automatically
        patient = client.get_patient("eq081-VQEgP8drUUqCWzHfw3")
        ```
@@ -309,17 +309,17 @@ def list_test_patients():
     print("\n" + "="*60)
     print("EPIC SANDBOX TEST PATIENTS")
     print("="*60)
-    
+
     config = EpicConfig()
     print("\nAvailable test patients (FHIR IDs):")
     print("-" * 50)
     for name, fhir_id in config.TEST_PATIENTS.items():
         print(f"  {name}: {fhir_id}")
-    
+
     print("\nMyChart Login Credentials (for patient-facing apps):")
     print(f"  Username: {config.TEST_MYCHART_USER}")
     print(f"  Password: {config.TEST_MYCHART_PASSWORD}")
-    
+
     print("\nProvider Login Credentials (for provider-facing apps):")
     print(f"  Username: {config.TEST_PROVIDER_USER}")
     print(f"  Password: {config.TEST_PROVIDER_PASSWORD}")
@@ -333,10 +333,10 @@ def main():
 ║              Sandbox Testing & Development                    ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
-    
+
     # List test patients
     list_test_patients()
-    
+
     # Run examples
     example_open_api()
     example_search_patients()
@@ -344,7 +344,7 @@ def main():
     example_patient_summary()
     example_with_bearer_token()
     example_backend_auth()
-    
+
     print("\n" + "="*60)
     print("Examples complete!")
     print("="*60)

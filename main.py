@@ -21,7 +21,7 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     response: str
-    data_sources: List[Dict[str, Any]]
+    data_sources: List[Any]  # Can be strings (simplified) or Dicts (errors)
 
 @app.post("/ask", response_model=QueryResponse)
 async def ask_agent(request: QueryRequest):

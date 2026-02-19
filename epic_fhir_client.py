@@ -35,21 +35,21 @@ class EpicConfig:
     FHIR_BASE_URL: str = "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4"
     OAUTH_TOKEN_URL: str = "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token"
     AUTHORIZE_URL: str = "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize"
-    
+
     # Open (unsecured) API endpoints for testing
     OPEN_FHIR_BASE_URL: str = "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4"
-    
+
     # Sandbox Test Patients (publicly available FHIR IDs from Epic documentation)
     TEST_PATIENTS: Dict[str, str] = None
-    
+
     # Test Credentials (for patient-facing apps via MyChart)
     TEST_MYCHART_USER: str = "fhirjason"
     TEST_MYCHART_PASSWORD: str = "epicepic1"
-    
+
     # Provider Test Credentials
     TEST_PROVIDER_USER: str = "USCDI"
     TEST_PROVIDER_PASSWORD: str = "epicuscdi"
-    
+
     def __post_init__(self):
         if self.TEST_PATIENTS is None:
             # Common test patient FHIR IDs from Epic sandbox
@@ -68,7 +68,7 @@ class EpicOpenClient:
     Client for Epic's Open FHIR API endpoints.
     These endpoints don't require authentication and are perfect for initial testing.
     """
-    
+
     def __init__(self, base_url: str = None):
         self.config = EpicConfig()
         self.base_url = base_url or self.config.OPEN_FHIR_BASE_URL
@@ -77,14 +77,14 @@ class EpicOpenClient:
             "Accept": "application/fhir+json",
             "Content-Type": "application/fhir+json"
         })
-    
+
     def get_patient(self, patient_id: str) -> Dict[str, Any]:
         """
         Read a specific patient by FHIR ID
-        
+
         Args:
             patient_id: The patient's FHIR ID (e.g., "eq081-VQEgP8drUUqCWzHfw3")
-        
+
         Returns:
             Patient FHIR resource as dictionary
         """
@@ -92,14 +92,14 @@ class EpicOpenClient:
         response = self.session.get(url)
         response.raise_for_status()
         return response.json()
-    
+
     def search_patients(self, **params) -> Dict[str, Any]:
         """
         Search for patients with various parameters.
-        
+
         Args:
             **params: Search parameters like family, given, birthdate, identifier
-        
+
         Example:
             client.search_patients(family="Lopez", given="Camila")
         """
@@ -107,25 +107,25 @@ class EpicOpenClient:
         response = self.session.get(url, params=params)
         response.raise_for_status()
         return response.json()
-    
+
     def get_conditions(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's conditions/diagnoses"""
         url = f"{self.base_url}/Condition"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_medications(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's medication requests"""
         url = f"{self.base_url}/MedicationRequest"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_observations(self, patient_id: str, category: str = None) -> Dict[str, Any]:
         """
         Get patient's observations (vitals, lab results, etc.)
-        
+
         Args:
             patient_id: Patient FHIR ID
             category: Optional - 'vital-signs', 'laboratory', 'social-history', etc.
@@ -137,49 +137,49 @@ class EpicOpenClient:
         response = self.session.get(url, params=params)
         response.raise_for_status()
         return response.json()
-    
+
     def get_allergies(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's allergy intolerances"""
         url = f"{self.base_url}/AllergyIntolerance"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_immunizations(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's immunization records"""
         url = f"{self.base_url}/Immunization"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_procedures(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's procedures"""
         url = f"{self.base_url}/Procedure"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_encounters(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's encounters"""
         url = f"{self.base_url}/Encounter"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_diagnostic_reports(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's diagnostic reports"""
         url = f"{self.base_url}/DiagnosticReport"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_documents(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's document references"""
         url = f"{self.base_url}/DocumentReference"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_clinical_notes(self, patient_id: str) -> Dict[str, Any]:
         """
         Get patient's clinical notes specifically.
@@ -193,7 +193,7 @@ class EpicOpenClient:
         response = self.session.get(url, params=params)
         response.raise_for_status()
         return response.json()
-    
+
     def get_binary(self, binary_id: str) -> bytes:
         """
         Get raw binary content (e.g., for PDF notes).
@@ -204,39 +204,39 @@ class EpicOpenClient:
             url = binary_id
         else:
             url = f"{self.base_url}/Binary/{binary_id}"
-            
+
         response = self.session.get(url, headers={"Accept": "application/pdf, application/json, text/plain, */*"})
         response.raise_for_status()
         return response.content
-    
+
     def get_care_plans(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's care plans"""
         url = f"{self.base_url}/CarePlan"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_goals(self, patient_id: str) -> Dict[str, Any]:
         """Get patient's goals"""
         url = f"{self.base_url}/Goal"
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def get_practitioner(self, practitioner_id: str) -> Dict[str, Any]:
         """Get a practitioner by ID"""
         url = f"{self.base_url}/Practitioner/{practitioner_id}"
         response = self.session.get(url)
         response.raise_for_status()
         return response.json()
-    
+
     def get_metadata(self) -> Dict[str, Any]:
         """Get server capability statement (metadata)"""
         url = f"{self.base_url}/metadata"
         response = self.session.get(url)
         response.raise_for_status()
         return response.json()
-    
+
     def get_patient_summary(self, patient_id: str) -> Dict[str, Any]:
         """
         Get International Patient Summary (IPS) document
@@ -254,13 +254,13 @@ class EpicBackendClient:
     """
     Client for Epic's secured FHIR API using Backend System authentication.
     This uses JWT-based client_credentials flow for server-to-server communication.
-    
+
     Requirements:
     1. Register an app at https://fhir.epic.com/
     2. Generate RSA key pair and upload public key
     3. Get your Non-Production Client ID
     """
-    
+
     def __init__(
         self,
         client_id: str,
@@ -269,7 +269,7 @@ class EpicBackendClient:
     ):
         """
         Initialize the backend client.
-        
+
         Args:
             client_id: Your Non-Production Client ID from Epic on FHIR
             private_key_path: Path to your RSA private key file (.pem)
@@ -279,7 +279,7 @@ class EpicBackendClient:
         self.client_id = client_id
         self.base_url = base_url or self.config.FHIR_BASE_URL
         self.token_url = self.config.OAUTH_TOKEN_URL
-        
+
         # Load private key
         with open(private_key_path, 'rb') as f:
             try:
@@ -290,16 +290,16 @@ class EpicBackendClient:
                 print("Error: 'cryptography' library is required for EpicBackendClient.")
                 print("Install it with: pip install cryptography")
                 raise
-        
+
         self.access_token = None
         self.token_expiry = None
-        
+
         self.session = requests.Session()
         self.session.headers.update({
             "Accept": "application/fhir+json",
             "Content-Type": "application/fhir+json"
         })
-    
+
     def _create_jwt(self) -> str:
         """Create a signed JWT for authentication"""
         now = datetime.now(tz=timezone.utc)
@@ -311,7 +311,7 @@ class EpicBackendClient:
             "iat": int(now.timestamp()),
             "exp": int((now + timedelta(minutes=4)).timestamp()),
         }
-        
+
         try:
             import jwt
         except ImportError:
@@ -326,22 +326,22 @@ class EpicBackendClient:
             headers={"alg": "RS384", "typ": "JWT"}
         )
         return token
-    
+
     def authenticate(self) -> str:
         """
         Obtain an access token using JWT assertion.
-        
+
         Returns:
             Access token string
         """
         client_assertion = self._create_jwt()
-        
+
         data = {
             "grant_type": "client_credentials",
             "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
             "client_assertion": client_assertion
         }
-        
+
         response = requests.post(self.token_url, data=data)
         try:
             response.raise_for_status()
@@ -349,23 +349,23 @@ class EpicBackendClient:
             print(f"Authentication Error: {e}")
             print(f"Response Body: {response.text}")
             raise
-        
+
         token_data = response.json()
         print(f"  Granted Scopes: {token_data.get('scope', 'None')}")
         self.access_token = token_data["access_token"]
         expires_in = token_data.get("expires_in", 3600)
         self.token_expiry = datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
-        
+
         # Update session headers
         self.session.headers["Authorization"] = f"Bearer {self.access_token}"
-        
+
         return self.access_token
-    
+
     def _ensure_authenticated(self):
         """Ensure we have a valid access token"""
         if not self.access_token or datetime.now(tz=timezone.utc) >= self.token_expiry:
             self.authenticate()
-    
+
     def get_patient(self, patient_id: str) -> Dict[str, Any]:
         """Read a patient by FHIR ID"""
         self._ensure_authenticated()
@@ -373,7 +373,7 @@ class EpicBackendClient:
         response = self.session.get(url)
         response.raise_for_status()
         return response.json()
-    
+
     def search_patients(self, **params) -> Dict[str, Any]:
         """Search for patients"""
         self._ensure_authenticated()
@@ -492,7 +492,7 @@ class EpicBackendClient:
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def fhir_request(
         self,
         method: str,
@@ -503,7 +503,7 @@ class EpicBackendClient:
     ) -> Dict[str, Any]:
         """
         Make a generic FHIR API request.
-        
+
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
             resource: FHIR resource type (Patient, Observation, etc.)
@@ -512,11 +512,11 @@ class EpicBackendClient:
             data: Optional request body
         """
         self._ensure_authenticated()
-        
+
         url = f"{self.base_url}/{resource}"
         if resource_id:
             url = f"{url}/{resource_id}"
-        
+
         response = self.session.request(
             method=method,
             url=url,
@@ -534,11 +534,11 @@ class EpicTokenClient:
     Client for Epic's FHIR API when you already have a bearer token.
     Useful for testing with tokens obtained through the web interface.
     """
-    
+
     def __init__(self, access_token: str, base_url: str = None):
         """
         Initialize with an existing access token.
-        
+
         Args:
             access_token: Bearer token (get from Epic sandbox web interface)
             base_url: Optional custom base URL
@@ -546,21 +546,21 @@ class EpicTokenClient:
         self.config = EpicConfig()
         self.base_url = base_url or self.config.FHIR_BASE_URL
         self.access_token = access_token
-        
+
         self.session = requests.Session()
         self.session.headers.update({
             "Accept": "application/fhir+json",
             "Content-Type": "application/fhir+json",
             "Authorization": f"Bearer {access_token}"
         })
-    
+
     def get_patient(self, patient_id: str) -> Dict[str, Any]:
         """Read a patient by FHIR ID"""
         url = f"{self.base_url}/Patient/{patient_id}"
         response = self.session.get(url)
         response.raise_for_status()
         return response.json()
-    
+
     def search_patients(self, **params) -> Dict[str, Any]:
         """Search for patients"""
         url = f"{self.base_url}/Patient"
@@ -665,7 +665,7 @@ class EpicTokenClient:
         response = self.session.get(url, params={"patient": patient_id})
         response.raise_for_status()
         return response.json()
-    
+
     def fhir_request(
         self,
         method: str,
@@ -678,7 +678,7 @@ class EpicTokenClient:
         url = f"{self.base_url}/{resource}"
         if resource_id:
             url = f"{url}/{resource_id}"
-        
+
         response = self.session.request(
             method=method,
             url=url,
@@ -694,7 +694,7 @@ class EpicTokenClient:
 def format_patient_info(patient: Dict) -> str:
     """Format patient FHIR resource into readable string"""
     output = []
-    
+
     # Name
     if "name" in patient:
         for name in patient["name"]:
@@ -706,15 +706,15 @@ def format_patient_info(patient: Dict) -> str:
             if "family" in name:
                 full_name.append(name["family"])
             output.append(f"Name: {' '.join(full_name)}")
-    
+
     # Birth date
     if "birthDate" in patient:
         output.append(f"Birth Date: {patient['birthDate']}")
-    
+
     # Gender
     if "gender" in patient:
         output.append(f"Gender: {patient['gender']}")
-    
+
     # Address
     if "address" in patient:
         for addr in patient["address"]:
@@ -728,7 +728,7 @@ def format_patient_info(patient: Dict) -> str:
             if "postalCode" in addr:
                 addr_parts.append(addr["postalCode"])
             output.append(f"Address: {', '.join(addr_parts)}")
-    
+
     # Phone
     if "telecom" in patient:
         for telecom in patient["telecom"]:
@@ -736,13 +736,13 @@ def format_patient_info(patient: Dict) -> str:
                 output.append(f"Phone: {telecom.get('value')}")
             elif telecom.get("system") == "email":
                 output.append(f"Email: {telecom.get('value')}")
-    
+
     # Identifiers
     if "identifier" in patient:
         for ident in patient["identifier"]:
             id_type = ident.get("type", {}).get("text", "ID")
             output.append(f"{id_type}: {ident.get('value')}")
-    
+
     return "\n".join(output)
 
 
@@ -764,9 +764,9 @@ def print_response(response: Dict, indent: int = 2):
 if __name__ == "__main__":
     # Quick test with open API
     print("Testing Epic FHIR API connection...")
-    
+
     client = EpicOpenClient()
-    
+
     # Test metadata endpoint
     try:
         metadata = client.get_metadata()
