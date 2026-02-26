@@ -2,7 +2,9 @@ import os
 import json
 from typing import List, Dict, Any
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+#from langchain_openai import ChatOpenAI
+#from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
@@ -11,9 +13,10 @@ from tools import tools
 # Load environment variables
 load_dotenv()
 
-# Initialize the model
-# Using gpt-4 as requested, or gpt-4-turbo/gpt-4o if available for better tool calling
-llm = ChatOpenAI(model="gpt-4", temperature=0)
+# Initialize the gemini model
+# llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
+
+llm = ChatOllama(model="llama3-groq-tool-use", temperature=0)
 
 # Bind tools to the model
 llm_with_tools = llm.bind_tools(tools)
@@ -32,22 +35,38 @@ def process_query(user_input: str, patient_id: str) -> Dict[str, Any]:
     """
 
     # System prompt to set context
-    system_prompt = f"""You are a helpful medical assistant.
-    You have access to tools to retrieve patient data for patient ID: {patient_id}.
-    ALWAYS use this patient_id when calling tools.
-    You can retrieve patient demographics, labs, and medications.
+    # system_prompt gemini = f"""You are a helpful medical assistant.
+    # You have access to tools to retrieve patient data for patient ID: {patient_id}.
+    # ALWAYS use this patient_id when calling tools.
+    # You can retrieve patient demographics, labs, and medications.
 
-    When answering, summarize the findings clearly.
-    If the user asks for data you just retrieved, present it nicely.
-    If you cannot find the answer in the tools, ask for clarification.
+    # When answering, summarize the findings clearly.
+    # If the user asks for data you just retrieved, present it nicely.
+    # If you cannot find the answer in the tools, ask for clarification.
+    # """
+
+    system_prompt = """
+    You are a secure Clinical Assistant. 
+    You have access to real-time patient data via Epic FHIR tools.
+    Your goal is to provide concise, medically accurate summaries for doctors.
+    STRICT RULES:
+    1. Only use information provided by the tools.
+    2. If the tool returns a JSON bundle, analyze it fully for the requested data.
+    3. If data is missing, state 'Information not available'—do not hallucinate.
+    4. Keep patient privacy as a priority.
     """
+
+    full_prompt = f"Patient ID: {patient_id}\nQuery: {user_input}"
 
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_input)
+        HumanMessage(content=full_prompt)
     ]
 
     data_sources = []
+
+    print("\n--- DEBUG: Sending to LLM ---")
+    print(f"Prompt: {full_prompt}")
 
     # First invocation
     ai_msg = llm_with_tools.invoke(messages)
