@@ -51,7 +51,31 @@ def get_medications_tool(patient_id: str) -> str:
     """
     try:
         bundle = client.get_medications(patient_id)
-        return json.dumps(bundle) # Hand the raw JSON bundle to Gemini
+        
+        # Pre-process the JSON for the local model
+        if "entry" not in bundle:
+            return "No medications found for this patient."
+
+        med_list = []
+        for entry in bundle.get("entry", []):
+            resource = entry.get("resource", {})
+            
+            # Epic FHIR R4 stores the name in one of two places
+            med_name = "Unknown Medication"
+            if "medicationReference" in resource:
+                med_name = resource["medicationReference"].get("display", "Unknown")
+            elif "medicationCodeableConcept" in resource:
+                med_name = resource["medicationCodeableConcept"].get("text", "Unknown")
+            
+            # Extract the clinical status
+            status = resource.get("status", "Unknown")
+            
+            med_list.append(f"- {med_name} (Status: {status})")
+
+        # Join into a clean, human-readable string
+        clean_output = "\n".join(med_list)
+        return f"Patient Medications:\n{clean_output}"
+
     except Exception as e:
         return f"Error retrieving medications: {str(e)}"
 
