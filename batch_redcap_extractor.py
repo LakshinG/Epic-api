@@ -10,38 +10,22 @@ import re
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-# 1. Expanded Pydantic Schema with Schema-Bound Constraints
+# 1. Simplified Pydantic Schema
 class REDCapEpilepsyData(BaseModel):
-    sz_age: Optional[int] = Field(
-        description="The patient's age at FIRST seizure onset. Do not confuse with current age."
+    internal_clinical_reasoning: str = Field(
+        description="Step-by-step reasoning citing the text."
     )
-    hand_dom: Optional[int] = Field(
-        description="Hand-dominance: 1=Left, 2=Right, 3=Ambidextrous, 99=Other."
-    )
-    medhx_etio: Optional[int] = Field(
-        description="Seizure type: 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic."
-    )
-    medhx_prior_episgy: Optional[int] = Field(
-        description="Previous epilepsy surgery: 1=Yes, 2=No."
-    )
-    demo_gender: Optional[int] = Field(
-        description="Patient Identified Gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other."
-    )
-    demo_employed: Optional[int] = Field(
-        description="Employment status: 1=Yes, 0=No, 999=Unknown. If the text does not mention employment, output 999."
-    )
-    medhx_etio_focal: Optional[int] = Field(
-        description="Etiology of Seizure: 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke, 5=Tumor, 9=Genetic."
-    )
-    medhx_szsyndrome: Optional[int] = Field(
-        description="Confirmed epilepsy syndrome presence: 1=Yes, 2=No."
-    )
-    medhx_priorepisgy_type: Optional[List[int]] = Field(
-        description="Prior epilepsy surgeries: 1=Lesionectomy, 2=Anterior temporal lobectomy, 8=Laser corpus callosotomy, 9=Laser ablation, 12=Deep brain stimulation."
-    )
-    medhx_neurohx: Optional[List[int]] = Field(
-        description="Neurological Co-morbidities: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. UNIVERSAL RULE: Only map explicit, formal diagnoses of the patient. Ignore negations (e.g. 'no history of'), family history, or related symptoms. If ANY of 1-5 are present, DO NOT include 0. If none exist, output [0]."
-    )
+    sz_age: Optional[int]
+    hand_dom: Optional[int]
+    medhx_etio: Optional[int]
+    medhx_prior_episgy: Optional[int]
+    demo_gender: Optional[int]
+    demo_employed: Optional[int]
+    medhx_etio_focal: Optional[List[int]]
+    medhx_szsyndrome: Optional[int]
+    medhx_priorepisgy_type: Optional[List[int]]
+    medhx_neurohx: Optional[List[int]]
+    medhx_psych: Optional[List[int]]
 
 # 2. Initialize the 14B Model
 llm = ChatOllama(model="qwen2.5:14b", 
@@ -52,16 +36,25 @@ structured_llm = llm.with_structured_output(REDCapEpilepsyData)
 # 3. Explicit System Instructions (Mapping Rules)
 system_instructions = """
 You are an expert clinical data abstraction AI. 
-TASK: Extract REDCap variables from the clinical note.
+TASK: Extract REDCap variables from the clinical note into specific integer codes.
 
 UNIVERSAL VERIFICATION RULES:
-1. For every field, you must internally locate the specific sentence that confirms the diagnosis.
+1. REASONING FIRST: You must evaluate EVERY field in the `internal_clinical_reasoning` string before outputting any numbers. State the field name, cite the text, and state the integer code you will use.
 2. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
 3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
 
-MAPPING:
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. 
-  *STRICT RULE*: Only output a code if the diagnosis is active or in the patient's confirmed past history.
+CODE MAPPINGS (YOU MUST USE THESE EXACT INTEGERS):
+- sz_age: The patient's age at FIRST seizure onset.
+- hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
+- medhx_etio: Seizure type. 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
+- medhx_prior_episgy: Did the patient have PREVIOUS EPILEPSY SURGERY (e.g. VNS, Lobectomy)? 1=Yes, 2=No. (NOTE: Having seizures or being evaluated for surgery is NOT surgery. Look only at past surgical history).
+- demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
+- demo_employed: 1=Yes, 0=No, 999=Unknown.
+- medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No.
+- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown. (NOTE: If a physical cause like Tumor or Stroke is NOT explicitly stated, map to 999. Do not use psychological triggers here).
+- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
+- medhx_neurohx: Neurological Co-morbidities. 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
+- medhx_psych: Psychiatric Co-Morbidities. 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
 """
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_instructions),
@@ -260,24 +253,24 @@ synthetic_notes = [
     """
 ]
 
-# 4.5 THE DETERMINISTIC TEXT CHUNKER
-def isolate_relevant_chunks(note_text):
-    """
-    A generalized negative-parser. Instead of guessing where the good data is,
-    it systematically deletes the highly-standardized 'noisy' sections of an H&P.
-    """
-    clean_text = note_text
-
-    # 1. Remove "Review of Systems" through to the next major section (usually Objective/Physical Exam)
-    clean_text = re.sub(r'Review of Systems.*?(?=Objective|Physical Exam|Diagnostic Studies|\Z)', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
-    
-    # 2. Remove "Objective / Physical Exam" through to Labs
-    clean_text = re.sub(r'(?:Objective|Physical Exam).*?(?=Diagnostic Studies|Labs|\Z)', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
-    
-    # 3. Remove "Diagnostic Studies / Labs" to the end
-    clean_text = re.sub(r'(?:Diagnostic Studies|All Labs).*?(?=\Z)', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
-
-    return clean_text.strip()
+# 4.5 THE DETERMINISTIC TEXT CHUNKER (Deprecated)
+# def isolate_relevant_chunks(note_text):
+#     """
+#     A generalized negative-parser. Instead of guessing where the good data is,
+#     it systematically deletes the highly-standardized 'noisy' sections of an H&P.
+#     """
+#     clean_text = note_text
+#
+#     # 1. Remove "Review of Systems" through to the next major section (usually Objective/Physical Exam)
+#     clean_text = re.sub(r'Review of Systems.*?(?=Objective|Physical Exam|Diagnostic Studies|\Z)', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
+#
+#     # 2. Remove "Objective / Physical Exam" through to Labs
+#     clean_text = re.sub(r'(?:Objective|Physical Exam).*?(?=Diagnostic Studies|Labs|\Z)', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
+#
+#     # 3. Remove "Diagnostic Studies / Labs" to the end
+#     clean_text = re.sub(r'(?:Diagnostic Studies|All Labs).*?(?=\Z)', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
+#
+#     return clean_text.strip()
 
 # 5. The Processing Loop
 # 5. The Generalized Two-Pass Processing Loop
@@ -292,13 +285,16 @@ for idx, note in enumerate(synthetic_notes):
         distill_prompt = (
             "Summarize the following clinical note into a concise medical profile. "
             "Focus ONLY on: Patient demographics, hand dominance, employment, "
-            "detailed seizure history (onset age and types), past medical history, "
-            "and all past surgical history. "
+            "detailed seizure history (onset age, syndrome, and etiology/focal types), "
+            "past medical history (including specific neurological and psychiatric comorbidities), "
+            "and all past surgical history (especially prior epilepsy surgeries like VNS or DBS). "
             "IGNORE: Physical exam findings, vital signs, and current lab results."
         )
         
         # We use the raw LLM to create a clean text summary first
         distilled_summary = llm.invoke(f"{distill_prompt}\n\n{note}")
+        print("\n--- PASS 1: DISTILLED SUMMARY ---")
+        print(distilled_summary.content)
 
         # PASS 2: The "Extraction" Step
         # Now we feed the CLEAN, short summary to the structured extractor.
@@ -307,6 +303,10 @@ for idx, note in enumerate(synthetic_notes):
         if not isinstance(data, dict):
             data = data.model_dump()
             
+        print("\n--- PASS 2: AI REASONING ---")
+        print(data.get("internal_clinical_reasoning", "No reasoning provided."))
+        print("\n------------------------------\n")
+
         data['record_id'] = idx + 1 
         extracted_records.append(data)
         
@@ -329,13 +329,23 @@ if extracted_records:
         df = df.drop(columns=[column_name])
         return df
 
-    # Expand the two multi-select columns using the exact codes from your prompt
+    # Expand the multi-select columns using the exact codes from your prompt
     if 'medhx_priorepisgy_type' in df.columns:
-        df = expand_checkboxes(df, 'medhx_priorepisgy_type', [1, 2, 8, 9, 12])
+        df = expand_checkboxes(df, 'medhx_priorepisgy_type', [10, 11, 12, 13, 14, 999])
         
     if 'medhx_neurohx' in df.columns:
         df = expand_checkboxes(df, 'medhx_neurohx', [1, 2, 3, 4, 5, 0])
+
+    if 'medhx_etio_focal' in df.columns:
+        df = expand_checkboxes(df, 'medhx_etio_focal', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 999])
+
+    if 'medhx_psych' in df.columns:
+        df = expand_checkboxes(df, 'medhx_psych', [1, 2, 3, 4, 5, 6, 7, 0, 999])
     # -------------------------------------
+
+    # Drop the internal_clinical_reasoning column before export
+    if 'internal_clinical_reasoning' in df.columns:
+        df = df.drop(columns=['internal_clinical_reasoning'])
     
     # Reorder columns so record_id is first (REDCap requirement)
     cols = ['record_id'] + [col for col in df.columns if col != 'record_id']
