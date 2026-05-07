@@ -10,44 +10,22 @@ import re
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-# 1. Expanded Pydantic Schema with Schema-Bound Constraints
+# 1. Simplified Pydantic Schema
 class REDCapEpilepsyData(BaseModel):
     internal_clinical_reasoning: str = Field(
-        description="Think step-by-step for EVERY field. Cite specific sentences from the text and explain why you chose each code before assigning it."
+        description="Step-by-step reasoning citing the text."
     )
-    sz_age: Optional[int] = Field(
-        description="The patient's age at FIRST seizure onset. Do not confuse with current age."
-    )
-    hand_dom: Optional[int] = Field(
-        description="Hand-dominance."
-    )
-    medhx_etio: Optional[int] = Field(
-        description="Seizure type."
-    )
-    medhx_prior_episgy: Optional[int] = Field(
-        description="Did the patient have PREVIOUS EPILEPSY SURGERY (like VNS, Lobectomy)? Look ONLY at the past surgical history. Having seizures or evaluating for surgery is NOT surgery."
-    )
-    demo_gender: Optional[int] = Field(
-        description="Patient Identified Gender."
-    )
-    demo_employed: Optional[int] = Field(
-        description="Employment status."
-    )
-    medhx_etio_focal: Optional[List[int]] = Field(
-        description="Specific structural cause of Focal Seizures. If a physical cause like Tumor or TBI is NOT explicitly stated, you MUST map to 999. Do not confuse psychological triggers with etiology."
-    )
-    medhx_szsyndrome: Optional[int] = Field(
-        description="Confirmed epilepsy syndrome presence."
-    )
-    medhx_priorepisgy_type: Optional[List[int]] = Field(
-        description="Prior epilepsy surgeries."
-    )
-    medhx_neurohx: Optional[List[int]] = Field(
-        description="Neurological Co-morbidities."
-    )
-    medhx_psych: Optional[List[int]] = Field(
-        description="Psychiatric Co-Morbidities."
-    )
+    sz_age: Optional[int]
+    hand_dom: Optional[int]
+    medhx_etio: Optional[int]
+    medhx_prior_episgy: Optional[int]
+    demo_gender: Optional[int]
+    demo_employed: Optional[int]
+    medhx_etio_focal: Optional[List[int]]
+    medhx_szsyndrome: Optional[int]
+    medhx_priorepisgy_type: Optional[List[int]]
+    medhx_neurohx: Optional[List[int]]
+    medhx_psych: Optional[List[int]]
 
 # 2. Initialize the 14B Model
 llm = ChatOllama(model="qwen2.5:14b", 
@@ -61,21 +39,22 @@ You are an expert clinical data abstraction AI.
 TASK: Extract REDCap variables from the clinical note into specific integer codes.
 
 UNIVERSAL VERIFICATION RULES:
-1. REASONING FIRST: You must evaluate EVERY single field in the `internal_clinical_reasoning` string before outputting any numbers. State the field name, cite the sentence from the text, and state the integer code you will use.
+1. REASONING FIRST: You must evaluate EVERY field in the `internal_clinical_reasoning` string before outputting any numbers. State the field name, cite the text, and state the integer code you will use.
 2. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
 3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
 
 CODE MAPPINGS (YOU MUST USE THESE EXACT INTEGERS):
+- sz_age: The patient's age at FIRST seizure onset.
 - hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
-- medhx_etio: 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
-- medhx_prior_episgy: 1=Yes, 2=No.
+- medhx_etio: Seizure type. 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
+- medhx_prior_episgy: Did the patient have PREVIOUS EPILEPSY SURGERY (e.g. VNS, Lobectomy)? 1=Yes, 2=No. (NOTE: Having seizures or being evaluated for surgery is NOT surgery. Look only at past surgical history).
 - demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
-- medhx_szsyndrome: 1=Yes, 2=No.
-- medhx_etio_focal: 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown.
-- medhx_priorepisgy_type: 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
-- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
+- medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No.
+- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown. (NOTE: If a physical cause like Tumor or Stroke is NOT explicitly stated, map to 999. Do not use psychological triggers here).
+- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
+- medhx_neurohx: Neurological Co-morbidities. 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
+- medhx_psych: Psychiatric Co-Morbidities. 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
 """
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_instructions),
