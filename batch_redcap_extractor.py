@@ -8,45 +8,45 @@ import re
 
 # 1. Expanded Pydantic Schema with Multi-Select Lists
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 # 1. Expanded Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
     internal_clinical_reasoning: str = Field(
-        description="Think step-by-step. Cite specific sentences from the text and explain why you chose each code before assigning it."
+        description="Think step-by-step for EVERY field. Cite specific sentences from the text and explain why you chose each code before assigning it."
     )
     sz_age: Optional[int] = Field(
         description="The patient's age at FIRST seizure onset. Do not confuse with current age."
     )
-    hand_dom: Optional[int] = Field(
-        description="Hand-dominance: 1=Left, 2=Right, 3=Ambidextrous, 99=Other."
+    hand_dom: Optional[Literal[1, 2, 3, 99]] = Field(
+        description="Hand-dominance."
     )
-    medhx_etio: Optional[int] = Field(
-        description="Seizure type: 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic."
+    medhx_etio: Optional[Literal[0, 1, 2, 3, 4]] = Field(
+        description="Seizure type."
     )
-    medhx_prior_episgy: Optional[int] = Field(
-        description="Previous epilepsy surgery: 1=Yes, 2=No."
+    medhx_prior_episgy: Optional[Literal[1, 2]] = Field(
+        description="Previous epilepsy surgery."
     )
-    demo_gender: Optional[int] = Field(
-        description="Patient Identified Gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other."
+    demo_gender: Optional[Literal[1, 2, 3, 4, 99]] = Field(
+        description="Patient Identified Gender."
     )
-    demo_employed: Optional[int] = Field(
-        description="Employment status: 1=Yes, 0=No, 999=Unknown. If the text does not mention employment, output 999."
+    demo_employed: Optional[Literal[1, 0, 999]] = Field(
+        description="Employment status."
     )
-    medhx_etio_focal: Optional[List[int]] = Field(
-        description="Etiology of Seizure: 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke / Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, Migrational Abnormality, 8=Autoimmune / Inflammatory, 9=Genetic, 10=Other Lesion, 999=Unknown."
+    medhx_etio_focal: Optional[List[Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 999]]] = Field(
+        description="Etiology of Seizure."
     )
-    medhx_szsyndrome: Optional[int] = Field(
-        description="Confirmed epilepsy syndrome presence: 1=Yes, 2=No."
+    medhx_szsyndrome: Optional[Literal[1, 2]] = Field(
+        description="Confirmed epilepsy syndrome presence."
     )
-    medhx_priorepisgy_type: Optional[List[int]] = Field(
-        description="Prior epilepsy surgeries: 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown."
+    medhx_priorepisgy_type: Optional[List[Literal[10, 11, 12, 13, 14, 999]]] = Field(
+        description="Prior epilepsy surgeries."
     )
-    medhx_neurohx: Optional[List[int]] = Field(
-        description="Neurological Co-morbidities: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. UNIVERSAL RULE: Only map explicit, formal diagnoses of the patient. Ignore negations (e.g. 'no history of'), family history, or related symptoms. If ANY of 1-5 are present, DO NOT include 0. If none exist, output [0]."
+    medhx_neurohx: Optional[List[Literal[1, 2, 3, 4, 5, 0]]] = Field(
+        description="Neurological Co-morbidities."
     )
-    medhx_psych: Optional[List[int]] = Field(
-        description="Psychiatric Co-Morbidities: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia or other psychotic disorder, 6=Alcohol/Substance Use Disorder, 7=Other, 0=None of the above, 999=Unknown."
+    medhx_psych: Optional[List[Literal[1, 2, 3, 4, 5, 6, 7, 0, 999]]] = Field(
+        description="Psychiatric Co-Morbidities."
     )
 
 # 2. Initialize the 14B Model
@@ -58,16 +58,24 @@ structured_llm = llm.with_structured_output(REDCapEpilepsyData)
 # 3. Explicit System Instructions (Mapping Rules)
 system_instructions = """
 You are an expert clinical data abstraction AI. 
-TASK: Extract REDCap variables from the clinical note.
+TASK: Extract REDCap variables from the clinical note into specific integer codes.
 
 UNIVERSAL VERIFICATION RULES:
-1. For every field, you must document your reasoning in the `internal_clinical_reasoning` field first. Cite the specific sentence that confirms the diagnosis before assigning the code.
+1. REASONING FIRST: You must evaluate EVERY single field in the `internal_clinical_reasoning` string before outputting any numbers. State the field name, cite the sentence from the text, and state the integer code you will use.
 2. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
 3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
 
-MAPPING:
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. 
-  *STRICT RULE*: Only output a code if the diagnosis is active or in the patient's confirmed past history.
+CODE MAPPINGS (YOU MUST USE THESE EXACT INTEGERS):
+- hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
+- medhx_etio: 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
+- medhx_prior_episgy: 1=Yes, 2=No.
+- demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
+- demo_employed: 1=Yes, 0=No, 999=Unknown.
+- medhx_szsyndrome: 1=Yes, 2=No.
+- medhx_etio_focal: 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown.
+- medhx_priorepisgy_type: 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
+- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
+- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
 """
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_instructions),
