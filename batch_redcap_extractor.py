@@ -25,7 +25,7 @@ class REDCapEpilepsyData(BaseModel):
         description="Seizure type."
     )
     medhx_prior_episgy: Optional[Literal[1, 2]] = Field(
-        description="Previous epilepsy surgery."
+        description="Did the patient have PREVIOUS EPILEPSY SURGERY (like VNS, Lobectomy)? Look ONLY at the past surgical history. Having seizures or evaluating for surgery is NOT surgery."
     )
     demo_gender: Optional[Literal[1, 2, 3, 4, 99]] = Field(
         description="Patient Identified Gender."
@@ -34,7 +34,7 @@ class REDCapEpilepsyData(BaseModel):
         description="Employment status."
     )
     medhx_etio_focal: Optional[List[Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 999]]] = Field(
-        description="Etiology of Seizure."
+        description="Specific structural cause of Focal Seizures. If a physical cause like Tumor or TBI is NOT explicitly stated, you MUST map to 999. Do not confuse psychological triggers with etiology."
     )
     medhx_szsyndrome: Optional[Literal[1, 2]] = Field(
         description="Confirmed epilepsy syndrome presence."
