@@ -306,6 +306,8 @@ for idx, note in enumerate(synthetic_notes):
         
         # We use the raw LLM to create a clean text summary first
         distilled_summary = llm.invoke(f"{distill_prompt}\n\n{note}")
+        print("\n--- PASS 1: DISTILLED SUMMARY ---")
+        print(distilled_summary.content)
 
         # PASS 2: The "Extraction" Step
         # Now we feed the CLEAN, short summary to the structured extractor.
@@ -314,6 +316,10 @@ for idx, note in enumerate(synthetic_notes):
         if not isinstance(data, dict):
             data = data.model_dump()
             
+        print("\n--- PASS 2: AI REASONING ---")
+        print(data.get("internal_clinical_reasoning", "No reasoning provided."))
+        print("\n------------------------------\n")
+
         data['record_id'] = idx + 1 
         extracted_records.append(data)
         
