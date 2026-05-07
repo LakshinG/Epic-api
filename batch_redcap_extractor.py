@@ -8,7 +8,7 @@ import re
 
 # 1. Expanded Pydantic Schema with Multi-Select Lists
 from pydantic import BaseModel, Field
-from typing import Optional, List, Literal
+from typing import Optional, List
 
 # 1. Expanded Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
@@ -18,34 +18,34 @@ class REDCapEpilepsyData(BaseModel):
     sz_age: Optional[int] = Field(
         description="The patient's age at FIRST seizure onset. Do not confuse with current age."
     )
-    hand_dom: Optional[Literal[1, 2, 3, 99]] = Field(
+    hand_dom: Optional[int] = Field(
         description="Hand-dominance."
     )
-    medhx_etio: Optional[Literal[0, 1, 2, 3, 4]] = Field(
+    medhx_etio: Optional[int] = Field(
         description="Seizure type."
     )
-    medhx_prior_episgy: Optional[Literal[1, 2]] = Field(
+    medhx_prior_episgy: Optional[int] = Field(
         description="Did the patient have PREVIOUS EPILEPSY SURGERY (like VNS, Lobectomy)? Look ONLY at the past surgical history. Having seizures or evaluating for surgery is NOT surgery."
     )
-    demo_gender: Optional[Literal[1, 2, 3, 4, 99]] = Field(
+    demo_gender: Optional[int] = Field(
         description="Patient Identified Gender."
     )
-    demo_employed: Optional[Literal[1, 0, 999]] = Field(
+    demo_employed: Optional[int] = Field(
         description="Employment status."
     )
-    medhx_etio_focal: Optional[List[Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 999]]] = Field(
+    medhx_etio_focal: Optional[List[int]] = Field(
         description="Specific structural cause of Focal Seizures. If a physical cause like Tumor or TBI is NOT explicitly stated, you MUST map to 999. Do not confuse psychological triggers with etiology."
     )
-    medhx_szsyndrome: Optional[Literal[1, 2]] = Field(
+    medhx_szsyndrome: Optional[int] = Field(
         description="Confirmed epilepsy syndrome presence."
     )
-    medhx_priorepisgy_type: Optional[List[Literal[10, 11, 12, 13, 14, 999]]] = Field(
+    medhx_priorepisgy_type: Optional[List[int]] = Field(
         description="Prior epilepsy surgeries."
     )
-    medhx_neurohx: Optional[List[Literal[1, 2, 3, 4, 5, 0]]] = Field(
+    medhx_neurohx: Optional[List[int]] = Field(
         description="Neurological Co-morbidities."
     )
-    medhx_psych: Optional[List[Literal[1, 2, 3, 4, 5, 6, 7, 0, 999]]] = Field(
+    medhx_psych: Optional[List[int]] = Field(
         description="Psychiatric Co-Morbidities."
     )
 
