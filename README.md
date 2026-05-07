@@ -75,3 +75,39 @@ Any other Patient ID will result in empty data or a "Patient not found" error.
 - `agent.py`: LangChain agent logic, prompt engineering, and tool execution loop.
 - `tools.py`: Definitions of the tools the AI can use (decorated with `@tool`).
 - `epic_service.py`: The mock client simulating Epic's FHIR API.
+
+
+# Local LLM Clinical Extraction Pipeline (REDCap / Epic FHIR)
+
+## Overview
+This repository contains a HIPAA-compliant, zero-cloud NLP pipeline designed to extract complex, unstructured clinical text into structured integer codes for the REDCap Epilepsy database. 
+
+Due to the constraints of processing unredacted clinical notes and navigating IRB approvals, this architecture is designed to run **100% locally** on lab hardware (using Ollama and Llama/Qwen architectures). No patient data is ever transmitted to OpenAI, Anthropic, or external cloud providers.
+
+## Core Features
+* **Zero-Cloud Local Inference:** Utilizes `qwen2.5:14b` via Ollama for deterministic, secure clinical abstraction.
+* **Strict Schema Adherence:** Leverages LangChain and Pydantic to enforce REDCap data dictionary rules, including mutually exclusive integers and multi-select arrays.
+* **Batch Processing:** Automatically processes arrays of clinical progress notes and exports a `redcap_import_ready.csv` formatted exactly for REDCap bulk upload.
+* **Epic FHIR Integration:** Includes backend API clients secured via RSA/JWT for querying structured patient demographics and medication data directly from Epic's FHIR endpoints.
+
+## Architecture
+
+
+
+1. **Input:** Unstructured clinical paragraphs (currently synthetic data for development).
+2. **LLM Engine:** LangChain orchestration binds the REDCap Pydantic schema to the local 14B parameter model. Temperature is set to `0` for deterministic, repeatable extraction.
+3. **Output:** A strict Python Dictionary/JSON object mapped to REDCap integer codes.
+4. **Export:** Pandas aggregates the processed records and generates a batch CSV.
+
+## Prerequisites
+To run this pipeline locally, you will need:
+* **Hardware:** A dedicated GPU with at least 8GB of VRAM (e.g., RTX 4070) is recommended to run the 14B model effectively.
+* **Software:** Python 3.12+ and [Ollama](https://ollama.com/) installed and running in the background.
+
+## Setup Instructions
+
+**1. Clone the repository and activate the virtual environment:**
+```powershell
+git clone <your-repo-url>
+cd Epic-api
+.\venv\Scripts\Activate.ps1

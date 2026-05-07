@@ -24,6 +24,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 
 # ==================== CONFIGURATION ====================
