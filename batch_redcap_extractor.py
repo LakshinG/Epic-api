@@ -68,7 +68,7 @@ You are an expert clinical data abstraction AI.
 TASK: Extract REDCap variables from the clinical note into specific integer codes.
 
 UNIVERSAL VERIFICATION RULES:
-1. REASONING FIRST: Evaluate EVERY field in `internal_clinical_reasoning` before outputting numbers. Cite the sentence and state the code.
+1. REASONING FIRST: You must evaluate EVERY single field in the `step_by_step_logic` list before outputting any final numbers. For each field, provide the variable name, cite the exact evidence, and state the chosen code.
 2. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
 3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
 
@@ -340,12 +340,15 @@ if extracted_records:
                 ) else 0
             )
         return dataframe.drop(columns=[column_name])
-    # Expand multi-select columns with verified PDF codes
+
+    # Expand multi-select columns with ALL verified PDF codes
     if 'medhx_priorepisgy_type' in df.columns:
-        df = expand_checkboxes(df, 'medhx_priorepisgy_type', [10, 11, 12, 13, 14, 999])
+        # Added 1 through 9
+        df = expand_checkboxes(df, 'medhx_priorepisgy_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 999])
         
     if 'medhx_neurohx' in df.columns:
-        df = expand_checkboxes(df, 'medhx_neurohx', [1, 2, 3, 4, 5, 0])
+        # Added 6, 7, 8, and 999
+        df = expand_checkboxes(df, 'medhx_neurohx', [1, 2, 3, 4, 5, 6, 7, 8, 0, 999])
 
     if 'medhx_etio_focal' in df.columns:
         df = expand_checkboxes(df, 'medhx_etio_focal', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 999])
