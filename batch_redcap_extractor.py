@@ -19,6 +19,9 @@ class REDCapEpilepsyData(BaseModel):
     sz_age: Optional[int] = Field(
         description="The patient's age at FIRST seizure onset. Do not confuse with current age."
     )
+    sz_age: Optional[int] = Field(
+        description="The patient's age at FIRST seizure onset. Do not confuse with current age."
+    )
     hand_dom: Optional[int] = Field(
         description="Hand-dominance."
     )
@@ -71,15 +74,15 @@ UNIVERSAL VERIFICATION RULES:
 
 CODE MAPPINGS (STRICT PDF VERIFICATION):
 - hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
-- medhx_etio: 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
-- medhx_prior_episgy: 1=Yes, 2=No.
+- medhx_etio: int = Field(..., description="Seizure Type... 1=Focal/Multifocal, 2=Generalized, 3=Unknown. You MUST pick exactly one of these three numbers. Do not output 99.")
+- medhx_prior_episgy: int = Field(..., description="Prior epilepsy surgery? (1=Yes, 2=No). ONLY code 1 if the patient had a specific NEUROSURGICAL intervention for epilepsy (e.g., resection, ablation, VNS). General medical surgeries do not count.")
 - demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
-- medhx_szsyndrome: 1=Yes, 2=No.
-- medhx_etio_focal: 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown.
-- medhx_priorepisgy_type: 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
-- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
+- medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No. (NOTE: "Localization-related epilepsy" or "complex partial seizures" are diagnoses, NOT named syndromes. A syndrome is specific like Lennox-Gastaut, Dravet, or Juvenile Myoclonic. If a named syndrome is not explicitly confirmed, map to 2).
+- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown. (NOTE: If a physical cause like Tumor or Stroke is NOT explicitly stated, map to 999. Do not use psychological triggers here).
+- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
+- medhx_neurohx: Neurological Co-morbidities. 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
+- medhx_psych: Psychiatric Co-Morbidities. 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown. (NOTE: If the patient has MULTIPLE psychiatric conditions, you MUST list every single code separated by commas in the chosen_code field, e.g. '1, 4').
 """
 
 prompt = ChatPromptTemplate.from_messages([
