@@ -74,15 +74,15 @@ UNIVERSAL VERIFICATION RULES:
 
 CODE MAPPINGS (STRICT PDF VERIFICATION):
 - hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
-- medhx_etio: 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
-- medhx_prior_episgy: 1=Yes, 2=No.
+- medhx_etio: int = Field(..., description="Seizure Type... 1=Focal/Multifocal, 2=Generalized, 3=Unknown. You MUST pick exactly one of these three numbers. Do not output 99.")
+- medhx_prior_episgy: int = Field(..., description="Prior epilepsy surgery? (1=Yes, 2=No). ONLY code 1 if the patient had a specific NEUROSURGICAL intervention for epilepsy (e.g., resection, ablation, VNS). General medical surgeries do not count.")
 - demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
-- medhx_szsyndrome: 1=Yes, 2=No.
-- medhx_etio_focal: 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown.
-- medhx_priorepisgy_type: 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown.
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches, 0=None. (Ignore negations).
-- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
+- medhx_szsyndrome: int = Field(..., description="Does the patient have a formally named epilepsy syndrome? (1=Yes, 2=No, 999=Unknown). ONLY code 1 if a specific, recognized syndrome (e.g., Dravet, Lennox-Gastaut, JME) is explicitly named. Generic descriptions like 'focal symptomatic epilepsy' DO NOT count as syndromes; code those as 2.")
+- medhx_etio_focal: List[int] = Field(..., description="If focal, what is the etiology? ... ONLY select a specific etiology (like 8 for Autoimmune) if it is definitively stated as the primary cause of the seizures. If it is only suspected, or if there is no explicit cause named, you MUST default to 999 (Unknown).")
+- mmedhx_priorepisgy_type: List[int] = Field(..., description="If the patient had prior surgery, what type? ... IF medhx_prior_episgy is 2 (No Surgery), you MUST leave this array completely empty []. Do not code 999 (Unknown) if they never had surgery.")
+- medhx_neurohx: List[int] = Field(..., description="Neurological Comorbidities... If the text mentions 'neuropathy' (like diabetic neuropathy), YOU MUST code 5. Do not use 0 (None) if neuropathy is present.")
+- medhx_psych: List[int] = Field(..., description="Psychiatric Comorbidities... Check the medical history AND the current medications. If the patient is taking an antidepressant (e.g., sertraline, fluoxetine), you must code 1 (Depression) even if the word 'depression' is not explicitly written in the history section.")
 """
 
 prompt = ChatPromptTemplate.from_messages([
