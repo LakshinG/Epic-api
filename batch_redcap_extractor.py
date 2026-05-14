@@ -9,12 +9,12 @@ import re
 class VariableReasoning(BaseModel):
     variable_name: str = Field(description="The name of the REDCap field (e.g., medhx_neurohx)")
     evidence_quote: str = Field(description="Exact sentence from the summary proving your choice.")
-    chosen_code: str = Field(description="The final integer code(s). If multiple (like checkboxes), list them separated by commas (e.g., '1, 4').")
+    chosen_code: str = Field(description="ONLY the final integer code(s). No words, no letters. If multiple (like checkboxes), list them separated by commas (e.g., '1, 4'). If empty or not applicable, write 'NONE'.")
 
 # 1. Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
     step_by_step_logic: List[VariableReasoning] = Field(
-        description="MANDATORY: You must create an entry for every REDCap variable listed below. Cite the text and justify the code BEFORE assigning the final variables."
+        description="MANDATORY: You must create a reasoning entry for EVERY REDCap variable (sz_age, hand_dom, medhx_etio, medhx_prior_episgy, demo_gender, demo_employed, medhx_szsyndrome, medhx_etio_focal, medhx_priorepisgy_type, medhx_neurohx, medhx_psych). Cite the text and justify the code BEFORE assigning the final variables."
     )
     sz_age: Optional[int] = Field(
         description="The patient's age at FIRST seizure onset. Do not confuse with current age."
@@ -54,6 +54,33 @@ class REDCapEpilepsyData(BaseModel):
         description="Psychiatric Co-Morbidities."
     )
 
+    emu_asm_number: int = Field(
+        ..., 
+        description="The total number of Anti-Seizure Medications (ASMs) the patient was taking AT THE TIME OF ADMISSION. If none, output 0."
+    )
+    
+    emu_asm_type: List[int] = Field(
+        ..., 
+        description="""HOME / ADMISSION MEDICATIONS. 
+        Stephen Rule: You must strictly isolate medications the patient was taking BEFORE/AT admission. Do NOT cross-pollinate with discharge prescriptions. 
+        Map the home/admission ASMs to these codes: 
+        1=levetiracetam, 2=lamotrigine, 3=carbamazepine, 4=oxcarbazepine, 5=eslicarbazepine, 6=brivaracetam, 7=topiramate, 8=zonisamide, 9=clobazam, 10=clonazepam, 11=diazepam, 12=lorazepam, 13=valproic acid, 14=gabapentin, 15=lacosamide, 16=pregabalin, 17=phenytoin, 18=phenobarbital, 19=cannabidiol, 20=cenobamate, 21=ethosuximide, 22=rufinamide, 23=felbamate, 24=perampanel, 25=acetazolamide, 26=primidone, 27=stiripentol, 28=vigabatrin, 29=fenfluramine, 99=Other. 
+        If there are no admission ASMs, output an empty array []."""
+    )
+
+    emu_asmdc_number: int = Field(
+        ..., 
+        description="The total number of Anti-Seizure Medications (ASMs) the patient was prescribed AT DISCHARGE. If none, output 0."
+    )
+    
+    emu_asmdc_type: List[int] = Field(
+        ..., 
+        description="""DISCHARGE MEDICATIONS. 
+        Stephen Rule: You must strictly isolate medications prescribed AT THE END of the hospital stay. If a medication was held/stopped during admission and NOT restarted at discharge, do NOT include it here. 
+        Use the exact same 1-29, 99 ASM legend as the admission medications. 
+        If there are no discharge ASMs, output an empty array []."""
+    )
+
 # 2. Initialize the 14B Model
 llm = ChatOllama(
     model="qwen2.5:14b", 
@@ -78,11 +105,11 @@ CODE MAPPINGS (STRICT PDF VERIFICATION):
 - medhx_prior_episgy: int = Field(..., description="Prior epilepsy surgery? (1=Yes, 2=No). ONLY code 1 if the patient had a specific NEUROSURGICAL intervention for epilepsy (e.g., resection, ablation, VNS). General medical surgeries do not count.")
 - demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
-- medhx_szsyndrome: int = Field(..., description="Does the patient have a formally named epilepsy syndrome? (1=Yes, 2=No, 999=Unknown). ONLY code 1 if a specific, recognized syndrome (e.g., Dravet, Lennox-Gastaut, JME) is explicitly named. Generic descriptions like 'focal symptomatic epilepsy' DO NOT count as syndromes; code those as 2.")
-- medhx_etio_focal: List[int] = Field(..., description="If focal, what is the etiology? ... ONLY select a specific etiology (like 8 for Autoimmune) if it is definitively stated as the primary cause of the seizures. If it is only suspected, or if there is no explicit cause named, you MUST default to 999 (Unknown).")
-- mmedhx_priorepisgy_type: List[int] = Field(..., description="If the patient had prior surgery, what type? ... IF medhx_prior_episgy is 2 (No Surgery), you MUST leave this array completely empty []. Do not code 999 (Unknown) if they never had surgery.")
-- medhx_neurohx: List[int] = Field(..., description="Neurological Comorbidities... If the text mentions 'neuropathy' (like diabetic neuropathy), YOU MUST code 5. Do not use 0 (None) if neuropathy is present.")
-- medhx_psych: List[int] = Field(..., description="Psychiatric Comorbidities... Check the medical history AND the current medications. If the patient is taking an antidepressant (e.g., sertraline, fluoxetine), you must code 1 (Depression) even if the word 'depression' is not explicitly written in the history section.")
+- medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No. (NOTE: "Localization-related epilepsy" or "complex partial seizures" are diagnoses, NOT named syndromes. A syndrome is specific like Lennox-Gastaut, Dravet, or Juvenile Myoclonic. If a named syndrome is not explicitly confirmed, map to 2).
+- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown. (NOTE: If a physical cause like Tumor or Stroke is NOT explicitly stated, YOU MUST OUTPUT 999. Do not use psychological triggers here).
+- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown. (NOTE: If medhx_prior_episgy is 2 (No), you MUST output 'NONE' for this field. Never output 999 if they had no surgery).
+- medhx_neurohx: Neurological Co-morbidities. 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None. (Ignore negations. NOTE: If the text mentions Neuropathy, you MUST code 5. Do not use 0 if Neuropathy is present).
+- medhx_psych: Psychiatric Co-Morbidities. 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown. (NOTE: If the patient has MULTIPLE psychiatric conditions, you MUST list every single code separated by commas in the chosen_code field, e.g. '1, 4').
 """
 
 prompt = ChatPromptTemplate.from_messages([
