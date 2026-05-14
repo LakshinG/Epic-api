@@ -14,7 +14,7 @@ class VariableReasoning(BaseModel):
 # 1. Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
     step_by_step_logic: List[VariableReasoning] = Field(
-        description="MANDATORY: You must create an entry for every REDCap variable listed below. Cite the text and justify the code BEFORE assigning the final variables."
+        description="MANDATORY: You must create a reasoning entry for EVERY REDCap variable (sz_age, hand_dom, medhx_etio, medhx_prior_episgy, demo_gender, demo_employed, medhx_szsyndrome, medhx_etio_focal, medhx_priorepisgy_type, medhx_neurohx, medhx_psych). Cite the text and justify the code BEFORE assigning the final variables."
     )
     sz_age: Optional[int] = Field(
         description="The patient's age at FIRST seizure onset. Do not confuse with current age."
