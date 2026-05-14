@@ -14,45 +14,45 @@ class VariableReasoning(BaseModel):
 # 1. Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
     step_by_step_logic: List[VariableReasoning] = Field(
-        description="MANDATORY: You must create a reasoning entry for EVERY REDCap variable (sz_age, hand_dom, medhx_etio, medhx_prior_episgy, demo_gender, demo_employed, medhx_szsyndrome, medhx_etio_focal, medhx_priorepisgy_type, medhx_neurohx, medhx_psych). Cite the text and justify the code BEFORE assigning the final variables."
+        description="MANDATORY: You must create a reasoning entry for EVERY REDCap variable (sz_age, hand_dom, medhx_etio, medhx_prior_episgy, demo_gender, demo_employed, medhx_szsyndrome, medhx_szsyndrome_type, medhx_etio_focal, medhx_priorepisgy_type, medhx_neurohx, medhx_psych, medhx_si, medhx_driving, medhx_sgy_cand_yn, emu_sz_type, emu_sz_type1_freq, emu_asm_number, emu_asm_type, emu_asm_sfx, emu_asmdc_number, emu_asmdc_type, emu_dcevents_type, emu_epilepsytype, emu_epilepsy_intract, emu_sxcandidate, mri_yn, mri_normal_abnormal, mri_lateralization, mri_l_localization, mri_r_localization, mri_lesion_left, mri_lesion_right, pet_yn, fmri_yn, wada_yn). Cite the text and justify the code BEFORE assigning the final variables."
     )
-    sz_age: Optional[int] = Field(
-        description="The patient's age at FIRST seizure onset. Do not confuse with current age."
-    )
-    sz_age: Optional[int] = Field(
-        description="The patient's age at FIRST seizure onset. Do not confuse with current age."
-    )
-    hand_dom: Optional[int] = Field(
-        description="Hand-dominance."
-    )
-    medhx_etio: Optional[int] = Field(
-        description="Seizure type."
-    )
-    medhx_prior_episgy: Optional[int] = Field(
-        description="Did the patient have PREVIOUS EPILEPSY SURGERY (like VNS, Lobectomy)? Look ONLY at the past surgical history. Having seizures or evaluating for surgery is NOT surgery."
-    )
-    demo_gender: Optional[int] = Field(
-        description="Patient Identified Gender."
-    )
-    demo_employed: Optional[int] = Field(
-        description="Employment status."
-    )
-    medhx_szsyndrome: Optional[int] = Field(
-        description="Confirmed epilepsy syndrome presence."
-    )
+    sz_age: Optional[int]
+    hand_dom: Optional[int]
+    medhx_etio: Optional[int]
+    medhx_prior_episgy: Optional[int]
+    demo_gender: Optional[int]
+    demo_employed: Optional[int]
+    medhx_szsyndrome: Optional[int]
+    medhx_szsyndrome_type: Optional[int]
+    medhx_si: Optional[int]
+    medhx_driving: Optional[int]
+    medhx_sgy_cand_yn: Optional[int]
+    emu_sz_type: Optional[int]
+    emu_sz_type1_freq: Optional[int]
+    emu_asm_number: Optional[int]
+    emu_asm_sfx: Optional[int]
+    emu_asmdc_number: Optional[int]
+    emu_dcevents_type: Optional[int]
+    emu_epilepsytype: Optional[int]
+    emu_epilepsy_intract: Optional[int]
+    emu_sxcandidate: Optional[int]
+    mri_yn: Optional[int]
+    mri_normal_abnormal: Optional[int]
+    mri_lateralization: Optional[int]
+    mri_l_localization: Optional[int]
+    mri_r_localization: Optional[int]
+    mri_lesion_left: Optional[int]
+    mri_lesion_right: Optional[int]
+    pet_yn: Optional[int]
+    fmri_yn: Optional[int]
+    wada_yn: Optional[int]
     # --- MULTI-SELECT FIELDS ---
-    medhx_etio_focal: Optional[List[int]] = Field(
-        description="Specific structural cause of Focal Seizures. If a physical cause like Tumor or TBI is NOT explicitly stated, map to 999."
-    )
-    medhx_priorepisgy_type: Optional[List[int]] = Field(
-        description="Prior epilepsy surgeries."
-    )
-    medhx_neurohx: Optional[List[int]] = Field(
-        description="Neurological Co-morbidities."
-    )
-    medhx_psych: Optional[List[int]] = Field(
-        description="Psychiatric Co-Morbidities."
-    )
+    medhx_etio_focal: Optional[List[int]]
+    medhx_priorepisgy_type: Optional[List[int]]
+    medhx_neurohx: Optional[List[int]]
+    medhx_psych: Optional[List[int]]
+    emu_asm_type: Optional[List[int]]
+    emu_asmdc_type: Optional[List[int]]
 
 # 2. Initialize the 14B Model
 llm = ChatOllama(
@@ -62,7 +62,7 @@ llm = ChatOllama(
 )
 structured_llm = llm.with_structured_output(REDCapEpilepsyData)
 
-# 3. Explicit System Instructions (Verified Codebook Mappings)
+# 3. Explicit System Instructions (Mapping Rules)
 system_instructions = """
 You are an expert clinical data abstraction AI. 
 TASK: Extract REDCap variables from the clinical note into specific integer codes.
@@ -73,16 +73,42 @@ UNIVERSAL VERIFICATION RULES:
 3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
 
 CODE MAPPINGS (STRICT PDF VERIFICATION):
+- sz_age: The patient's age at FIRST seizure onset.
 - hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
-- medhx_etio: int = Field(..., description="Seizure Type... 1=Focal/Multifocal, 2=Generalized, 3=Unknown. You MUST pick exactly one of these three numbers. Do not output 99.")
-- medhx_prior_episgy: int = Field(..., description="Prior epilepsy surgery? (1=Yes, 2=No). ONLY code 1 if the patient had a specific NEUROSURGICAL intervention for epilepsy (e.g., resection, ablation, VNS). General medical surgeries do not count.")
+- medhx_etio: Seizure type. 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
+- medhx_prior_episgy: PREVIOUS EPILEPSY SURGERY? 1=Yes, 2=No.
 - demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
-- medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No. (NOTE: "Localization-related epilepsy" or "complex partial seizures" are diagnoses, NOT named syndromes. A syndrome is specific like Lennox-Gastaut, Dravet, or Juvenile Myoclonic. If a named syndrome is not explicitly confirmed, map to 2).
-- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown. (NOTE: If a physical cause like Tumor or Stroke is NOT explicitly stated, YOU MUST OUTPUT 999. Do not use psychological triggers here).
-- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=Vagus nerve stimulation (VNS), 12=Deep brain stimulation (DBS), 13=Responsive neurostimulation (RNS), 14=Other, 999=Unknown. (NOTE: If medhx_prior_episgy is 2 (No), you MUST output 'NONE' for this field. Never output 999 if they had no surgery).
-- medhx_neurohx: Neurological Co-morbidities. 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None. (Ignore negations. NOTE: If the text mentions Neuropathy, you MUST code 5. Do not use 0 if Neuropathy is present).
-- medhx_psych: Psychiatric Co-Morbidities. 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown. (NOTE: If the patient has MULTIPLE psychiatric conditions, you MUST list every single code separated by commas in the chosen_code field, e.g. '1, 4').
+- medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No. (NOTE: "Localization-related epilepsy" is NOT a named syndrome, map to 2).
+- medhx_szsyndrome_type: Syndrome name. 1=MTLE-HS, 2=LGS, 4=CAE, 7=Dravet, 12=JME, 13=Focal/Multifocal NOS, 14=JAE, 15=Genetic/Idiopathic NOS, 999=Other.
+- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown.
+- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=VNS, 12=DBS, 13=RNS, 14=Other, 999=Unknown.
+- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None.
+- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
+- medhx_si: Suicidal Ideation/Attempt? 1=Yes, 0=No.
+- medhx_driving: Currently driving? 1=Yes, 2=No, 3=Unclear/Unknown.
+- medhx_sgy_cand_yn: Surgical candidate? 1=Yes, 2=No, 3=Unclear.
+- emu_sz_type: Most frequent seizure type. 1=Generalized TC, 2=Focal motor aware, 3=Focal non-motor aware, 4=Focal motor impaired, 5=Focal non-motor impaired, 6=Aware NOS, 7=Staring spells NOS, 8=Hypermotor NOS, 9=Myoclonus, 10=Convulsions NOS, 99=Other.
+- emu_sz_type1_freq: Frequency. 1=Multiple/day, 2=Daily, 3=Multiple/week, 4=Weekly, 5=Multiple/month, 6=Monthly, 7=Multiple/year, 8=Yearly, 9=Random clusters, 99=Other.
+- emu_asm_number: Number of ASMs on Admission. 0=None, 1=One, 2=Two, 3=Three, 4=Four, 5=Five+.
+- emu_asm_type: ASM list. 1=levetiracetam, 2=lamotrigine, 3=carbamazepine, 4=oxcarbazepine, 6=brivaracetam, 7=topiramate, 8=zonisamide, 9=clobazam, 10=clonazepam, 12=lorazepam, 13=valproic acid, 14=gabapentin, 15=lacosamide, 16=pregabalin, 17=phenytoin, 24=perampanel, 99=Other.
+- emu_asm_sfx: Side effects from ASMs? 1=yes, 2=no, 99=unclear.
+- emu_asmdc_number: Number of ASMs on Discharge. 0=None, 1=One, 2=Two, 3=Three, 4=Four, 5=Five+.
+- emu_asmdc_type: ASM list on discharge. Same codes as emu_asm_type.
+- emu_dcevents_type: Discharge diagnosis. 1=Epilepsy, 2=FND, 3=Mixed FND/Epilepsy, 4=Physiologic Non-epileptic, 5=Inconclusive.
+- emu_epilepsytype: 1=Focal Single, 2=Focal Two foci, 3=Multifocal, 4=Generalized Idiopathic, 5=Generalized Symptomatic, 6=Unlocalizable.
+- emu_epilepsy_intract: Medically refractory? 1=Yes, 2=No, 3=Unclear.
+- emu_sxcandidate: Surgery Candidate (EMU)? 1=Yes/discussed, 2=Yes/not amenable, 3=Yes/not discussed, 4=Possible future, 5=No, 999=Unknown.
+- mri_yn: MRI performed? 1=Yes, 2=No but ordered, 0=No.
+- mri_normal_abnormal: MRI Normal? 1=Normal, 2=Abnormal.
+- mri_lateralization: 1=Left, 2=Right, 3=Bilateral, 4=Midline, 5=Multifocal.
+- mri_l_localization: Left MRI. 1=Temporal, 2=Frontal, 3=Parietal, 4=Occipital, 5=Sub-cortical, 6=Other.
+- mri_r_localization: Right MRI. 1=Temporal, 2=Frontal, 3=Parietal, 4=Occipital, 5=Sub-cortical, 6=Other.
+- mri_lesion_left: Left lesion. 1=Hippocampal sclerosis, 2=Cavernoma, 3=Neoplasm/DNET/glioma, 4=FCD, 5=Stroke/Encephalomalacia, 6=Polymicrogyria, 7=Heterotopias, 8=Cortical Tubers, 0=Multiple, 99=Other.
+- mri_lesion_right: Right lesion. Same codes as left.
+- pet_yn: FDG-PET? 1=Yes, 2=No but ordered, 0=No.
+- fmri_yn: fMRI? 1=Yes, 2=No but ordered, 0=No.
+- wada_yn: WADA? 1=Yes, 2=No but ordered, 0=No.
 """
 
 prompt = ChatPromptTemplate.from_messages([
@@ -305,7 +331,7 @@ for idx, note in enumerate(synthetic_notes):
 
                 if extracted_numbers:
                     # Check if Pydantic expects a list for this specific variable
-                    if var_name in ['medhx_etio_focal', 'medhx_priorepisgy_type', 'medhx_neurohx', 'medhx_psych']:
+                    if var_name in ['medhx_etio_focal', 'medhx_priorepisgy_type', 'medhx_neurohx', 'medhx_psych', 'emu_asm_type', 'emu_asmdc_type']:
                         data[var_name] = [int(num) for num in extracted_numbers]
                     else:
                         data[var_name] = int(extracted_numbers[0]) # Grab the first number found
@@ -341,13 +367,11 @@ if extracted_records:
             )
         return dataframe.drop(columns=[column_name])
 
-    # Expand multi-select columns with ALL verified PDF codes
+    # Expand multi-select columns with verified PDF codes
     if 'medhx_priorepisgy_type' in df.columns:
-        # Added 1 through 9
         df = expand_checkboxes(df, 'medhx_priorepisgy_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 999])
         
     if 'medhx_neurohx' in df.columns:
-        # Added 6, 7, 8, and 999
         df = expand_checkboxes(df, 'medhx_neurohx', [1, 2, 3, 4, 5, 6, 7, 8, 0, 999])
 
     if 'medhx_etio_focal' in df.columns:
@@ -355,6 +379,12 @@ if extracted_records:
 
     if 'medhx_psych' in df.columns:
         df = expand_checkboxes(df, 'medhx_psych', [1, 2, 3, 4, 5, 6, 7, 0, 999])
+
+    if 'emu_asm_type' in df.columns:
+        df = expand_checkboxes(df, 'emu_asm_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 99])
+
+    if 'emu_asmdc_type' in df.columns:
+        df = expand_checkboxes(df, 'emu_asmdc_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 99])
 
     # Clean the dataframe for REDCap import
     if 'internal_clinical_reasoning' in df.columns:
