@@ -64,9 +64,9 @@ class ImagingExtraction(BaseModel):
     fmri_yn: Optional[int]
     wada_yn: Optional[int]
 
-# 2. Initialize the 14B Model
+# 2. Initialize the 32B Model
 llm = ChatOllama(
-    model="qwen2.5:14b",
+    model="qwen2.5:32b",
     temperature=0,
     base_url="http://127.0.0.1:11434"
 )
