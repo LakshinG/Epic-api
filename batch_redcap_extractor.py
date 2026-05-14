@@ -11,10 +11,10 @@ class VariableReasoning(BaseModel):
     evidence_quote: str = Field(description="Exact sentence from the summary proving your choice.")
     chosen_codes_array: List[int] = Field(description="The integer code(s). MUST BE AN ARRAY OF INTEGERS ONLY. E.g. [1] or [1, 4]. If none apply, use [0] or [999] based on the mapping rules.")
 
-# 1. Pydantic Schema with Schema-Bound Constraints
-class REDCapEpilepsyData(BaseModel):
+# --- 1. DUAL PYDANTIC SCHEMAS ---
+class HistoryExtraction(BaseModel):
     step_by_step_logic: List[VariableReasoning] = Field(
-        description="MANDATORY: You must create a reasoning entry for EVERY REDCap variable (sz_age, hand_dom, medhx_etio, medhx_prior_episgy, demo_gender, demo_employed, medhx_szsyndrome, medhx_szsyndrome_type, medhx_etio_focal, medhx_priorepisgy_type, medhx_neurohx, medhx_psych, medhx_si, medhx_driving, medhx_sgy_cand_yn, emu_sz_type, emu_sz_type1_freq, emu_asm_number, emu_asm_type, emu_asm_sfx, emu_asmdc_number, emu_asmdc_type, emu_dcevents_type, emu_epilepsytype, emu_epilepsy_intract, emu_sxcandidate, mri_yn, mri_normal_abnormal, mri_lateralization, mri_l_localization, mri_r_localization, mri_lesion_left, mri_lesion_right, pet_yn, fmri_yn, wada_yn). Cite the text and justify the code BEFORE assigning the final variables."
+        description="MANDATORY: You must create a reasoning entry for EVERY History variable."
     )
     sz_age: Optional[int]
     hand_dom: Optional[int]
@@ -27,15 +27,32 @@ class REDCapEpilepsyData(BaseModel):
     medhx_si: Optional[int]
     medhx_driving: Optional[int]
     medhx_sgy_cand_yn: Optional[int]
+    # Multi-select fields
+    medhx_etio_focal: Optional[List[int]]
+    medhx_priorepisgy_type: Optional[List[int]]
+    medhx_neurohx: Optional[List[int]]
+    medhx_psych: Optional[List[int]]
+
+class EmuExtraction(BaseModel):
+    step_by_step_logic: List[VariableReasoning] = Field(
+        description="MANDATORY: You must create a reasoning entry for EVERY EMU & Medication variable."
+    )
     emu_sz_type: Optional[int]
     emu_sz_type1_freq: Optional[int]
     emu_asm_number: Optional[int]
+    emu_asm_type: Optional[List[int]]
     emu_asm_sfx: Optional[int]
     emu_asmdc_number: Optional[int]
+    emu_asmdc_type: Optional[List[int]]
     emu_dcevents_type: Optional[int]
     emu_epilepsytype: Optional[int]
     emu_epilepsy_intract: Optional[int]
     emu_sxcandidate: Optional[int]
+
+class ImagingExtraction(BaseModel):
+    step_by_step_logic: List[VariableReasoning] = Field(
+        description="MANDATORY: You must create a reasoning entry for EVERY Imaging variable."
+    )
     mri_yn: Optional[int]
     mri_normal_abnormal: Optional[int]
     mri_lateralization: Optional[int]
@@ -46,13 +63,6 @@ class REDCapEpilepsyData(BaseModel):
     pet_yn: Optional[int]
     fmri_yn: Optional[int]
     wada_yn: Optional[int]
-    # --- MULTI-SELECT FIELDS ---
-    medhx_etio_focal: Optional[List[int]]
-    medhx_priorepisgy_type: Optional[List[int]]
-    medhx_neurohx: Optional[List[int]]
-    medhx_psych: Optional[List[int]]
-    emu_asm_type: Optional[List[int]]
-    emu_asmdc_type: Optional[List[int]]
 
 # 2. Initialize the 14B Model
 llm = ChatOllama(
@@ -60,19 +70,17 @@ llm = ChatOllama(
     temperature=0,
     base_url="http://127.0.0.1:11434"
 )
-structured_llm = llm.with_structured_output(REDCapEpilepsyData)
 
-# 3. Explicit System Instructions (Mapping Rules)
-system_instructions = """
+# 3. Explicit System Instructions & Chains setup
+history_system_instructions = """
 You are an expert clinical data abstraction AI. 
-TASK: Extract REDCap variables from the clinical note into specific integer codes.
+TASK: Extract Demographics and History REDCap variables.
 
 UNIVERSAL VERIFICATION RULES:
-1. REASONING FIRST: You must evaluate EVERY single field in the `step_by_step_logic` list before outputting any final numbers. For each field, provide the variable name, cite the exact evidence, and state the chosen code.
-2. DO NOT WRITE SENTENCES in the `chosen_codes_array` block. IT MUST BE AN ARRAY OF INTEGERS.
-3. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
+1. REASONING FIRST: Evaluate EVERY field in `step_by_step_logic` first.
+2. NEGATION CHECK: If a sentence contains "no history of", "denies", or "not present", map that field to 0 or null.
 
-CODE MAPPINGS (STRICT PDF VERIFICATION):
+CODE MAPPINGS:
 - sz_age: The patient's age at FIRST seizure onset.
 - hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
 - medhx_etio: Seizure type. 0=Generalized, 1=Focal/Multifocal, 2=Both, 3=Psychogenic, 4=Physiologic.
@@ -81,24 +89,44 @@ CODE MAPPINGS (STRICT PDF VERIFICATION):
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
 - medhx_szsyndrome: Confirmed epilepsy syndrome presence. 1=Yes, 2=No. (NOTE: "Localization-related epilepsy" is NOT a named syndrome, map to 2).
 - medhx_szsyndrome_type: Syndrome name. 1=MTLE-HS, 2=LGS, 4=CAE, 7=Dravet, 12=JME, 13=Focal/Multifocal NOS, 14=JAE, 15=Genetic/Idiopathic NOS, 999=Other.
-- medhx_etio_focal: Specific structural cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown.
-- medhx_priorepisgy_type: Prior epilepsy surgeries. 10=Multiple subpial transections, 11=VNS, 12=DBS, 13=RNS, 14=Other, 999=Unknown.
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None.
-- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar Disorder, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance Use, 7=Other, 0=None, 999=Unknown.
+- medhx_etio_focal: Cause of Focal Seizures. 1=Mesial-temporal sclerosis, 2=Prior TBI, 3=Post-stroke/Vascular injury, 4=Post-infectious, 5=Tumor, 6=Vascular lesion, 7=Cortical Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other Lesion, 999=Unknown. (NOTE: If no cause is explicitly stated, YOU MUST OUTPUT 999. Do not leave empty).
+- medhx_priorepisgy_type: 10=MST, 11=VNS, 12=DBS, 13=RNS, 14=Other, 999=Unknown. (NOTE: If medhx_prior_episgy is 2 (No), you MUST output 'NONE' or empty list).
+- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None. (NOTE: If Neuropathy is present, you MUST code 5. Do not use 0).
+- medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance, 7=Other, 0=None, 999=Unknown.
 - medhx_si: Suicidal Ideation/Attempt? 1=Yes, 0=No.
 - medhx_driving: Currently driving? 1=Yes, 2=No, 3=Unclear/Unknown.
 - medhx_sgy_cand_yn: Surgical candidate? 1=Yes, 2=No, 3=Unclear.
+"""
+
+emu_system_instructions = """
+You are an expert clinical pharmacist abstracting REDCap data.
+TASK: Extract Admission and Discharge Anti-Seizure Medications and EMU Seizure Details.
+
+STEPHEN RULE: You must explicitly differentiate between Home/Admission medications and Discharge medications. Do not cross-pollinate.
+- Admission Meds: Include all home ASMs, EVEN IF the note says they are 'held', 'paused', or 'stopped' during the admission.
+- Discharge Meds: Only include meds actively prescribed at the END of the hospital stay. If none (e.g. this is an admission note), return 0 / empty array [].
+- Rescue Medications: DO NOT count PRN, "rescue", or "as needed" medications (like Lorazepam or Diazepam). ONLY include daily, scheduled maintenance ASMs.
+
+MEDICATION LEGEND (Map to these codes, separate with commas if multiple):
+1=levetiracetam, 2=lamotrigine, 3=carbamazepine, 4=oxcarbazepine, 5=eslicarbazepine, 6=brivaracetam, 7=topiramate, 8=zonisamide, 9=clobazam, 10=clonazepam, 11=diazepam, 12=lorazepam, 13=valproic acid, 14=gabapentin, 15=lacosamide, 16=pregabalin, 17=phenytoin, 18=phenobarbital, 19=cannabidiol, 20=cenobamate, 21=ethosuximide, 22=rufinamide, 23=felbamate, 24=perampanel, 25=acetazolamide, 26=primidone, 27=stiripentol, 28=vigabatrin, 29=fenfluramine, 99=Other.
+
+EMU MAPPINGS:
 - emu_sz_type: Most frequent seizure type. 1=Generalized TC, 2=Focal motor aware, 3=Focal non-motor aware, 4=Focal motor impaired, 5=Focal non-motor impaired, 6=Aware NOS, 7=Staring spells NOS, 8=Hypermotor NOS, 9=Myoclonus, 10=Convulsions NOS, 99=Other.
 - emu_sz_type1_freq: Frequency. 1=Multiple/day, 2=Daily, 3=Multiple/week, 4=Weekly, 5=Multiple/month, 6=Monthly, 7=Multiple/year, 8=Yearly, 9=Random clusters, 99=Other.
 - emu_asm_number: Number of ASMs on Admission. 0=None, 1=One, 2=Two, 3=Three, 4=Four, 5=Five+.
-- emu_asm_type: ASM list. 1=levetiracetam, 2=lamotrigine, 3=carbamazepine, 4=oxcarbazepine, 6=brivaracetam, 7=topiramate, 8=zonisamide, 9=clobazam, 10=clonazepam, 12=lorazepam, 13=valproic acid, 14=gabapentin, 15=lacosamide, 16=pregabalin, 17=phenytoin, 24=perampanel, 99=Other.
 - emu_asm_sfx: Side effects from ASMs? 1=yes, 2=no, 99=unclear.
 - emu_asmdc_number: Number of ASMs on Discharge. 0=None, 1=One, 2=Two, 3=Three, 4=Four, 5=Five+.
-- emu_asmdc_type: ASM list on discharge. Same codes as emu_asm_type.
 - emu_dcevents_type: Discharge diagnosis. 1=Epilepsy, 2=FND, 3=Mixed FND/Epilepsy, 4=Physiologic Non-epileptic, 5=Inconclusive.
 - emu_epilepsytype: 1=Focal Single, 2=Focal Two foci, 3=Multifocal, 4=Generalized Idiopathic, 5=Generalized Symptomatic, 6=Unlocalizable.
 - emu_epilepsy_intract: Medically refractory? 1=Yes, 2=No, 3=Unclear.
 - emu_sxcandidate: Surgery Candidate (EMU)? 1=Yes/discussed, 2=Yes/not amenable, 3=Yes/not discussed, 4=Possible future, 5=No, 999=Unknown.
+"""
+
+imaging_system_instructions = """
+You are an expert clinical data abstraction AI.
+TASK: Extract Imaging and Diagnostics REDCap variables.
+
+CODE MAPPINGS:
 - mri_yn: MRI performed? 1=Yes, 2=No but ordered, 0=No.
 - mri_normal_abnormal: MRI Normal? 1=Normal, 2=Abnormal.
 - mri_lateralization: 1=Left, 2=Right, 3=Bilateral, 4=Midline, 5=Multifocal.
@@ -111,11 +139,10 @@ CODE MAPPINGS (STRICT PDF VERIFICATION):
 - wada_yn: WADA? 1=Yes, 2=No but ordered, 0=No.
 """
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_instructions),
-    ("human", "{clinical_note}")
-])
-extraction_chain = prompt | structured_llm
+# Build chains
+history_chain = ChatPromptTemplate.from_messages([("system", history_system_instructions), ("human", "{clinical_note}")]) | llm.with_structured_output(HistoryExtraction)
+emu_chain = ChatPromptTemplate.from_messages([("system", emu_system_instructions), ("human", "{clinical_note}")]) | llm.with_structured_output(EmuExtraction)
+imaging_chain = ChatPromptTemplate.from_messages([("system", imaging_system_instructions), ("human", "{clinical_note}")]) | llm.with_structured_output(ImagingExtraction)
 
 # 4. Data Source
 synthetic_notes = [
@@ -291,36 +318,58 @@ synthetic_notes = [
     """
 ]
 
-# 5. The Generalized Two-Pass Processing Loop with Safety Net
 extracted_records = []
 
 print("Starting extraction with multi-stage reasoning...\n")
 for idx, note in enumerate(synthetic_notes):
     print(f"Analyzing Note #{idx + 1}...")
     try:
-        # PASS 2: Structured Extraction (Chain of Thought)
-        data = extraction_chain.invoke({"clinical_note": note})
+        # PASS 1: The "Distillation" Step (Noise Removal)
+        distill_prompt = (
+            "Summarize the following clinical note into a concise medical profile. "
+            "Focus ONLY on: Patient demographics, hand dominance, employment, "
+            "detailed seizure history (onset age, syndrome, and etiology/focal types), "
+            "past medical history (including specific neurological and psychiatric comorbidities), "
+            "all past surgical history, AND ALL CURRENT/ADMISSION/DISCHARGE MEDICATIONS, "
+            "AND ALL IMAGING (MRI, PET, fMRI, WADA). "
+            "IGNORE: Physical exam findings, vital signs, and current lab results."
+        )
+        distilled_summary = llm.invoke(f"{distill_prompt}\n\n{note}")
+        print("\n--- PASS 1: DISTILLED SUMMARY ---")
+        print(distilled_summary.content)
+
+        # PASS 2: Multi-Chain Structured Extraction
+        print("\n--- Running History Chain ---")
+        history_result = history_chain.invoke({"clinical_note": distilled_summary.content})
+        history_data = history_result if isinstance(history_result, dict) else history_result.model_dump()
         
-        if not isinstance(data, dict):
-            data = data.model_dump()
+        print("--- Running EMU/Meds Chain ---")
+        emu_result = emu_chain.invoke({"clinical_note": distilled_summary.content})
+        emu_data = emu_result if isinstance(emu_result, dict) else emu_result.model_dump()
+
+        print("--- Running Imaging Chain ---")
+        imaging_result = imaging_chain.invoke({"clinical_note": distilled_summary.content})
+        imaging_data = imaging_result if isinstance(imaging_result, dict) else imaging_result.model_dump()
+
+        # Merge the dictionaries
+        data = {**history_data, **emu_data, **imaging_data}
+        combined_reasoning = history_data.get("step_by_step_logic", []) + emu_data.get("step_by_step_logic", []) + imaging_data.get("step_by_step_logic", [])
 
         # --- THE BULLETPROOF SAFETY NET ---
-        reasoning_list = data.get("step_by_step_logic", [])
-        for step in reasoning_list:
+        for step in combined_reasoning:
             var_name = step.get('variable_name')
             code_array = step.get('chosen_codes_array', [])
             
             # If the main variable is empty but the reasoning has an answer, extract it!
             if var_name and not data.get(var_name) and code_array:
-                # Check if Pydantic expects a list for this specific variable
                 if var_name in ['medhx_etio_focal', 'medhx_priorepisgy_type', 'medhx_neurohx', 'medhx_psych', 'emu_asm_type', 'emu_asmdc_type']:
                     data[var_name] = code_array
                 else:
-                    data[var_name] = code_array[0] # Grab the first number found
+                    data[var_name] = code_array[0]
 
         print("\n--- PASS 2: AI REASONING ---")
-        if reasoning_list:
-            for step in reasoning_list:
+        if combined_reasoning:
+            for step in combined_reasoning:
                 print(step)
         else:
             print("No reasoning provided.")
@@ -336,8 +385,6 @@ for idx, note in enumerate(synthetic_notes):
 if extracted_records:
     df = pd.DataFrame(extracted_records)
     
-    # REDCap Checkbox Expander
-    # NEW: Bulletproof Checkbox Expander
     def expand_checkboxes(dataframe, column_name, possible_codes):
         for code in possible_codes:
             dataframe[f"{column_name}___{code}"] = dataframe[column_name].apply(
@@ -349,30 +396,26 @@ if extracted_records:
             )
         return dataframe.drop(columns=[column_name])
 
-    # Expand multi-select columns with verified PDF codes
+    # Expand history columns
     if 'medhx_priorepisgy_type' in df.columns:
         df = expand_checkboxes(df, 'medhx_priorepisgy_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 999])
-        
     if 'medhx_neurohx' in df.columns:
         df = expand_checkboxes(df, 'medhx_neurohx', [1, 2, 3, 4, 5, 6, 7, 8, 0, 999])
-
     if 'medhx_etio_focal' in df.columns:
         df = expand_checkboxes(df, 'medhx_etio_focal', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 999])
-
     if 'medhx_psych' in df.columns:
         df = expand_checkboxes(df, 'medhx_psych', [1, 2, 3, 4, 5, 6, 7, 0, 999])
 
+    # Expand medication arrays
+    asm_codes = list(range(1, 30)) + [99]
     if 'emu_asm_type' in df.columns:
-        df = expand_checkboxes(df, 'emu_asm_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 99])
-
+        df = expand_checkboxes(df, 'emu_asm_type', asm_codes)
     if 'emu_asmdc_type' in df.columns:
-        df = expand_checkboxes(df, 'emu_asmdc_type', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 99])
+        df = expand_checkboxes(df, 'emu_asmdc_type', asm_codes)
 
     # Clean the dataframe for REDCap import
     if 'internal_clinical_reasoning' in df.columns:
         df = df.drop(columns=['internal_clinical_reasoning'])
-
-    # Drop the reasoning column before export
     if 'step_by_step_logic' in df.columns:
         df = df.drop(columns=['step_by_step_logic'])
     
