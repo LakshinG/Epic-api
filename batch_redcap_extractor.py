@@ -7,9 +7,9 @@ from langchain_ollama import ChatOllama
 import re
 
 class VariableReasoning(BaseModel):
-    variable_name: str = Field(description="The name of the REDCap field (e.g., medhx_neurohx)")
+    variable_name: str = Field(description="The exact name of the REDCap field (e.g., medhx_neurohx)")
     evidence_quote: str = Field(description="Exact sentence from the summary proving your choice.")
-    chosen_code: str = Field(description="DO NOT WRITE SENTENCES. ONLY OUTPUT DIGITS (e.g. '1' or '63'). No words, no letters. If multiple, list them separated by commas (e.g., '1, 4'). If empty or not applicable, write 'NONE'.")
+    chosen_codes_array: List[int] = Field(description="The integer code(s). MUST BE AN ARRAY OF INTEGERS ONLY. E.g. [1] or [1, 4]. If none apply, use [0] or [999] based on the mapping rules.")
 
 # 1. Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
@@ -68,9 +68,9 @@ You are an expert clinical data abstraction AI.
 TASK: Extract REDCap variables from the clinical note into specific integer codes.
 
 UNIVERSAL VERIFICATION RULES:
-1. REASONING FIRST: You must evaluate EVERY single field in the `step_by_step_logic` list before outputting any final numbers. For each field, provide the variable name, cite the exact evidence, and state the chosen code. DO NOT write sentences in the chosen_code field; ONLY output the final mapped integer digit(s).
-2. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
-3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
+1. REASONING FIRST: You must evaluate EVERY single field in the `step_by_step_logic` list before outputting any final numbers. For each field, provide the variable name, cite the exact evidence, and state the chosen code.
+2. DO NOT WRITE SENTENCES in the `chosen_codes_array` block. IT MUST BE AN ARRAY OF INTEGERS.
+3. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
 
 CODE MAPPINGS (STRICT PDF VERIFICATION):
 - sz_age: The patient's age at FIRST seizure onset.
@@ -308,20 +308,15 @@ for idx, note in enumerate(synthetic_notes):
         reasoning_list = data.get("step_by_step_logic", [])
         for step in reasoning_list:
             var_name = step.get('variable_name')
-            code_str = str(step.get('chosen_code', ''))
+            code_array = step.get('chosen_codes_array', [])
             
             # If the main variable is empty but the reasoning has an answer, extract it!
-            if var_name and not data.get(var_name) and code_str:
-
-                # Extract ONLY the numbers from strings like "999=Unknown" or "1=Depression, 4=PTSD"
-                extracted_numbers = re.findall(r'\d+', code_str)
-
-                if extracted_numbers:
-                    # Check if Pydantic expects a list for this specific variable
-                    if var_name in ['medhx_etio_focal', 'medhx_priorepisgy_type', 'medhx_neurohx', 'medhx_psych', 'emu_asm_type', 'emu_asmdc_type']:
-                        data[var_name] = [int(num) for num in extracted_numbers]
-                    else:
-                        data[var_name] = int(extracted_numbers[0]) # Grab the first number found
+            if var_name and not data.get(var_name) and code_array:
+                # Check if Pydantic expects a list for this specific variable
+                if var_name in ['medhx_etio_focal', 'medhx_priorepisgy_type', 'medhx_neurohx', 'medhx_psych', 'emu_asm_type', 'emu_asmdc_type']:
+                    data[var_name] = code_array
+                else:
+                    data[var_name] = code_array[0] # Grab the first number found
 
         print("\n--- PASS 2: AI REASONING ---")
         if reasoning_list:
