@@ -9,7 +9,7 @@ import re
 class VariableReasoning(BaseModel):
     variable_name: str = Field(description="The name of the REDCap field (e.g., medhx_neurohx)")
     evidence_quote: str = Field(description="Exact sentence from the summary proving your choice.")
-    chosen_code: str = Field(description="ONLY the final integer code(s). No words, no letters. If multiple (like checkboxes), list them separated by commas (e.g., '1, 4'). If empty or not applicable, write 'NONE'.")
+    chosen_code: str = Field(description="DO NOT WRITE SENTENCES. ONLY OUTPUT DIGITS (e.g. '1' or '63'). No words, no letters. If multiple, list them separated by commas (e.g., '1, 4'). If empty or not applicable, write 'NONE'.")
 
 # 1. Pydantic Schema with Schema-Bound Constraints
 class REDCapEpilepsyData(BaseModel):
@@ -68,7 +68,7 @@ You are an expert clinical data abstraction AI.
 TASK: Extract REDCap variables from the clinical note into specific integer codes.
 
 UNIVERSAL VERIFICATION RULES:
-1. REASONING FIRST: You must evaluate EVERY single field in the `step_by_step_logic` list before outputting any final numbers. For each field, provide the variable name, cite the exact evidence, and state the chosen code.
+1. REASONING FIRST: You must evaluate EVERY single field in the `step_by_step_logic` list before outputting any final numbers. For each field, provide the variable name, cite the exact evidence, and state the chosen code. DO NOT write sentences in the chosen_code field; ONLY output the final mapped integer digit(s).
 2. NEGATION CHECK: If a sentence contains "no history of", "denies", "negative for", or "not present", you MUST map that field to 0 or null.
 3. CONTEXT CHECK: Ensure the diagnosis refers to the PATIENT, not family members.
 
@@ -298,21 +298,8 @@ print("Starting extraction with multi-stage reasoning...\n")
 for idx, note in enumerate(synthetic_notes):
     print(f"Analyzing Note #{idx + 1}...")
     try:
-        # PASS 1: The "Distillation" Step (Noise Removal)
-        distill_prompt = (
-            "Summarize the following clinical note into a concise medical profile. "
-            "Focus ONLY on: Patient demographics, hand dominance, employment, "
-            "detailed seizure history (onset age, syndrome, and etiology/focal types), "
-            "past medical history (including specific neurological and psychiatric comorbidities), "
-            "and all past surgical history (especially prior epilepsy surgeries like VNS or DBS). "
-            "IGNORE: Physical exam findings, vital signs, and current lab results."
-        )
-        distilled_summary = llm.invoke(f"{distill_prompt}\n\n{note}")
-        print("\n--- PASS 1: DISTILLED SUMMARY ---")
-        print(distilled_summary.content)
-
         # PASS 2: Structured Extraction (Chain of Thought)
-        data = extraction_chain.invoke({"clinical_note": distilled_summary.content})
+        data = extraction_chain.invoke({"clinical_note": note})
         
         if not isinstance(data, dict):
             data = data.model_dump()
