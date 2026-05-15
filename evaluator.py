@@ -11,6 +11,10 @@ def benchmark_pipeline(extracted_path, ground_truth_path):
         print("Make sure both redcap_import_ready.csv and redcap_expected.csv exist in this folder.")
         return
 
+    # --- THE FIX: Standardize all nulls/NaNs to empty strings immediately ---
+    df_ext = df_ext.fillna("")
+    df_truth = df_truth.fillna("")
+
     # Find columns to compare (ignoring record_id so it doesn't crash on '1' vs 'real-001')
     common_cols = df_truth.columns.intersection(df_ext.columns).drop('record_id', errors='ignore')
     missing_cols = df_truth.columns.difference(df_ext.columns)
