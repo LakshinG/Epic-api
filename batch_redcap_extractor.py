@@ -12,32 +12,50 @@ class VariableReasoning(BaseModel):
     chosen_code: str = Field(description="The final output. IF A COUNT OR SINGLE CHOICE, output ONLY the single integer (e.g., '2'). IF AN ARRAY, output a comma-separated list of the integer codes (e.g., '2, 8').")
 
 # --- 1. PYDANTIC SCHEMAS ---
+# --- 1. PYDANTIC SCHEMAS ---
 class HistoryExtraction(BaseModel):
     step_by_step_logic: List[VariableReasoning] = Field(description="MANDATORY: You must create a reasoning entry for EVERY History variable.")
     
-    # Newly Added Metadata Variables
+    # Metadata
     patient_id: str = Field(description="The Patient ID from the metadata.")
     document_reference_id: str = Field(description="The Document Reference ID from the metadata.")
     note_date: str = Field(description="The exact date of the note from the metadata (YYYY-MM-DD).")
     title: str = Field(description="The exact title of the note from the metadata.")
 
+    # Demographics & General History
     sz_age: int = Field(description="Age at FIRST seizure onset. CRITICAL: DO NOT use current demographic age.")
     hand_dom: Optional[int] = Field(description="Hand-dominance.")
-    medhx_etio: Optional[int] = Field(description="Seizure type.")
-    medhx_prior_episgy: int = Field(description="PREVIOUS NEUROSURGERY for epilepsy? 1=Yes, 2=No.")
     demo_gender: Optional[int] = Field(description="Patient Identified Gender.")
     demo_employed: Optional[int] = Field(description="Employment status.")
-    medhx_szsyndrome: Optional[int] = Field(description="Confirmed epilepsy syndrome presence.")
-    
+    medhx_driving: Optional[int] = Field(description="Is this patient currently driving?")
+    medhx_si: Optional[int] = Field(description="Known history of Suicidal Ideation/Suicide Attempt?")
+
+    # Epilepsy & Seizure Details
+    medhx_etio: Optional[int] = Field(description="Seizure type.")
     medhx_etio_focal: Optional[List[int]] = Field(description="Specific structural cause of Focal Seizures.")
+    emu_epilepsytype: Optional[int] = Field(description="Epilepsy Type.")
+    medhx_szsyndrome: Optional[int] = Field(description="Confirmed epilepsy syndrome presence.")
+    medhx_szsyndrome_type: Optional[int] = Field(description="If syndrome present, specific epilepsy syndrome.")
+    emu_sz_type: Optional[int] = Field(description="Please select most frequent seizure type.")
+    emu_sz_type1_freq: Optional[int] = Field(description="Frequency of Primary Seizure Type.")
+    emu_epilepsy_intract: Optional[int] = Field(description="Is the patient's epilepsy medically refractory?")
+
+    # Surgery & Comorbidities
+    medhx_prior_episgy: int = Field(description="PREVIOUS NEUROSURGERY for epilepsy? 1=Yes, 2=No.")
     medhx_priorepisgy_type: Optional[List[int]] = Field(description="Prior epilepsy surgeries.")
+    medhx_sgy_cand_yn: Optional[int] = Field(description="Is this patient a surgical candidate? (Historical)")
+    emu_sxcandidate: Optional[int] = Field(description="Surgery Candidate / Is patient a surgery candidate? (Current Plan)")
     medhx_neurohx: Optional[List[int]] = Field(description="Neurological Co-morbidities.")
     medhx_psych: Optional[List[int]] = Field(description="Psychiatric Co-Morbidities.")
+    
+    # Discharge
+    emu_dcevents_type: Optional[int] = Field(description="Discharge Diagnosis.")
 
 class MedicationExtraction(BaseModel):
     step_by_step_logic: List[VariableReasoning] = Field(description="MANDATORY: You must create a reasoning entry for EVERY Medication variable.")
     emu_asm_number: int = Field(description="Total number of ASMs the patient was taking AT ADMISSION.")
     emu_asm_type: List[int] = Field(description="HOME / ADMISSION MEDICATIONS.")
+    emu_asm_sfx: Optional[int] = Field(description="Was patient experiencing side effects from ASMS?")
     emu_asmdc_number: int = Field(description="Total number of ASMs prescribed AT DISCHARGE.")
     emu_asmdc_type: List[int] = Field(description="DISCHARGE MEDICATIONS.")
 
@@ -70,17 +88,36 @@ UNIVERSAL VERIFICATION RULES:
 1. REASONING FIRST: Evaluate EVERY field in `step_by_step_logic` first.
 2. NEGATION CHECK: If a sentence contains "no history of" or "denies", map that field to the specific 'No' code (e.g., 0 or 2).
 
-CODE MAPPINGS:
+DEMOGRAPHICS & SOCIAL MAPPINGS:
+- sz_age: Age at FIRST seizure onset. ABSOLUTE RULE: You must use the explicitly stated "Seizure Onset Age" (e.g., 63). DO NOT use the patient's current demographic age.
 - hand_dom: 1=Left, 2=Right, 3=Ambidextrous, 99=Other.
-- medhx_etio: 1=Focal/Multifocal, 2=Generalized, 3=Unknown. (If note says "focal" or "localization-related", MUST code 1).
 - demo_gender: 1=Male, 2=Female, 3=Transgender, 4=Non-binary, 99=Other.
 - demo_employed: 1=Yes, 0=No, 999=Unknown.
+- medhx_driving: 1=Yes, 2=No, 3=Unknown.
+- medhx_si (Suicidal Ideation): 1=Yes, 0=No.
+
+EPILEPSY MAPPINGS:
+- medhx_etio: 1=Focal/Multifocal, 2=Generalized, 3=Unknown. (If note says "focal" or "localization-related", MUST code 1).
+- medhx_etio_focal: Cause of Focal Seizures. 1=MTS... 10=Other, 999=Unknown. DEPENDENCY RULE: If medhx_etio is 1, and no specific structural cause is explicitly stated, you MUST output the array [999].
+- emu_epilepsytype: 1=Focal-Single focus, 2=Focal-Two foci, 3=Multifocal(3+), 4=Generalized-idiopathic, 5=Generalized-symptomatic, 6=Unlocalizable. DEPENDENCY RULE: If diagnosis is "Localization-related (focal)", default to 1 (Focal-Single focus). Do not use 6 unless explicitly stated as unlocalizable.
 - medhx_szsyndrome: Confirmed syndrome. 1=Yes, 2=No. 
-- medhx_etio_focal: Cause of Focal Seizures. 1=MTS, 2=Prior TBI, 3=Post-stroke, 4=Post-infectious, 5=Tumor, 6=Vascular, 7=Dysplasia, 8=Autoimmune, 9=Genetic, 10=Other, 999=Unknown. (If no cause stated, output 999).
+- medhx_szsyndrome_type: 1=MTLE-HS... 15=Genetic NOS, 999=Other. DEPENDENCY RULE: If medhx_szsyndrome is 2 (No), medhx_szsyndrome_type MUST be left empty/null.
+- emu_sz_type (Most frequent): 1=PGTC, 2=Focal motor with retained awareness, 3=Focal non-motor with retained awareness, 4=Focal motor impaired awareness, 5=Focal non-motor impaired awareness, 6=Events retained awareness-NOS, 7=Staring spells-NOS, 8=Hypermotor-NOS, 9=Myoclonus, 10=Convulsions NOS, 99=Other. CRITICAL RULE: If the note explicitly states "sensory-onset" with "full awareness", you MUST bypass code 3 and select 6 (Events retained awareness-NOS) to match the legacy database schema.
+- emu_sz_type1_freq: 1=Multi/day, 2=Daily... 9=Random clusters, 99=Other. (CRITICAL RULE: If the note mentions seizures occurring in "clusters", you MUST output 9).
+- emu_epilepsy_intract (Refractory): 1=Yes, 2=No, 3=Unclear.
+
+SURGERY & COMORBIDITIES:
 - medhx_prior_episgy: 1=Yes, 2=No. Output 2 if no history.
-- medhx_priorepisgy_type: 10=MST, 11=VNS, 12=DBS, 13=RNS, 14=Other, 999=Unknown. DEPENDENCY RULE: If medhx_prior_episgy is 2 (No), you MUST output an empty array []. Do NOT use 999.
-- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None. (If Neuropathy present, code 5).
+- medhx_priorepisgy_type: 10=MST, 11=VNS... 999=Unknown. DEPENDENCY RULE: If medhx_prior_episgy is 2 (No), you MUST output an empty array [].
+- medhx_sgy_cand_yn (History of candidacy): 1=Yes, 2=No, 3=Unclear. 
+- emu_sxcandidate (Current candidacy): 1=Yes/discussed, 2=Yes/not amenable, 3=Yes/not discussed, 4=Possible future, 5=No, 999=Unknown. 
+- CRITICAL SURGERY RULE: If the patient is admitted for "epilepsy surgery evaluation", you MUST output 1 for BOTH medhx_sgy_cand_yn and emu_sxcandidate.
+- medhx_neurohx: 1=Stroke, 2=Hemorrhage, 3=TBI, 4=Dementia, 5=Headaches/Neuropathy, 0=None. CRITICAL RULE: If "Neuropathy" is listed in the past medical history, you MUST include 5.
 - medhx_psych: 1=Depression, 2=Anxiety, 3=Bipolar, 4=PTSD, 5=Schizophrenia, 6=Alcohol/Substance, 7=Other, 0=None, 999=Unknown.
+
+DISCHARGE:
+- emu_dcevents_type: 1=Epilepsy, 2=FND, 3=Mixed FND/Epilepsy, 4=Physiologic Non-epileptic, 5=Inconclusive, 6=Other.
+- CRITICAL GUARDRAIL: If the document is an "Admission Note", a discharge diagnosis does not exist yet. Leave emu_dcevents_type blank/null.
 """
 
 meds_system_instructions = """
@@ -91,6 +128,9 @@ STEPHEN RULE: Differentiate between Home/Admission and Discharge meds.
 - Admission Meds (emu_asm_type): Include all home ASMs, EVEN IF held/paused.
 - Discharge Meds (emu_asmdc_type): Only include meds actively prescribed at the END of the hospital stay. 
 - CRITICAL GUARDRAIL: If the document is an "Admission Note", "H&P", or "Admit to EMU", discharge medications DO NOT EXIST YET. You are STRICTLY FORBIDDEN from extracting any discharge meds. You MUST output emu_asmdc_number as 0 and emu_asmdc_type as an empty array [].
+
+SIDE EFFECTS:
+- emu_asm_sfx (Experiencing side effects?): 1=Yes, 2=No, 99=Unclear.
 
 ABSOLUTE EXCLUSION RULE:
 You must strictly EXCLUDE any medication labeled as PRN, "rescue", or "as needed". Do NOT count them. 
@@ -312,10 +352,11 @@ for idx, note in enumerate(synthetic_notes):
         distill_prompt = (
             "Summarize the following clinical note into a concise medical profile. "
             "Focus ONLY on: Metadata (patient_id, document_reference_id, note_date, title), "
-            "Patient demographics, Assessment and Plan, Principal Diagnoses, hand dominance, employment, "
-            "detailed seizure history, past medical history, past surgical history, "
-            "ALL medications, and ALL NEUROIMAGING/PREVIOUS WORKUP. "
-            "CRITICAL: Preserve all details regarding the principal diagnoses, medications, and imaging. "
+            "Patient demographics, Assessment and Plan (CRITICAL: preserve the exact phrase if admitted for 'epilepsy surgery evaluation'), "
+            "Principal Diagnoses, hand dominance, employment, "
+            "detailed seizure history (CRITICAL: MUST include exact seizure onset age, frequency, clusters, refractoriness, types, and awareness levels), "
+            "past medical history, past surgical history, social history (MUST include driving status), "
+            "ALL medications (including side effects), and ALL NEUROIMAGING/PREVIOUS WORKUP. "
             "IGNORE: Physical exam findings, vital signs, and current lab results."
         )
         distilled_summary = llm.invoke(f"{distill_prompt}\n\n{note}")
