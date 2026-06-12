@@ -1,0 +1,17 @@
+{
+  "personal_info": {
+    "full_name": "Lakshin Ganesha",
+    "university": "University of North Carolina at Chapel Hill",
+    "major": "Computer Science and Statistics",
+    "graduation_year": "2028"
+  },
+  "technical_skills": {
+    "python": "Advanced",
+    "rust": "Intermediate",
+    "selenium": "Intermediate"
+  },
+  "behavioral": {
+    "sponsorship": "No",
+    "authorized_to_work": "Yes"
+  }
+}
